@@ -1,4 +1,4 @@
-import 'package:autisense/login_signup/LoginScreen.dart';
+import 'package:autisecure/login_signup/login_screen.dart';
 import 'package:flutter/material.dart';
 
 class SignUpScreen extends StatefulWidget {
@@ -20,11 +20,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
     final TextEditingController addressController = TextEditingController();
     final TextEditingController dobController = TextEditingController();
 
-    Widget _buildTextField(
+    Widget buildTextField(
       String label,
-      TextEditingController controller, {
-      bool obscureText = false,
-    }) {
+      TextEditingController controller,
+      bool obscureText,
+    ) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 10),
         child: TextFormField(
@@ -42,7 +42,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
               borderRadius: BorderRadius.circular(10),
               borderSide: const BorderSide(color: Colors.purple, width: 2),
             ),
-            contentPadding: EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+            contentPadding: EdgeInsets.symmetric(horizontal: 15, vertical: 15),
           ),
         ),
       );
@@ -81,13 +81,23 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 ),
               ),
               SizedBox(height: 20),
-              _buildTextField("Name", nameController),
-              _buildTextField("Email", emailController),
-              _buildTextField("Phone Number", phController),
-              _buildTextField("Address", addressController),
-              _buildTextField("DOB", dobController),
-              _buildTextField("Password", passwordController),
-              _buildTextField("Confirm Password", confirmPasswordController),
+              buildTextField("Name", nameController, false),
+              SizedBox(height: 10),
+              buildTextField("Email", emailController, false),
+              SizedBox(height: 10),
+              buildTextField("Phone Number", phController, false),
+              SizedBox(height: 10),
+              buildTextField("Address", addressController, false),
+              SizedBox(height: 10),
+              buildTextField("DOB", dobController, false),
+              SizedBox(height: 10),
+              buildTextField("Password", passwordController, true),
+              SizedBox(height: 10),
+              buildTextField(
+                "Confirm Password",
+                confirmPasswordController,
+                true,
+              ),
               SizedBox(height: 20),
               ElevatedButton(
                 onPressed:

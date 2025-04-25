@@ -1,7 +1,7 @@
-import 'package:autisense/mainScreens/HomePage.dart';
-import 'package:autisense/mainScreens/TestScreen.dart';
-import 'package:autisense/mainScreens/doctorScreen.dart';
-import 'package:autisense/mainScreens/profile.dart';
+import 'package:autisecure/mainScreens/home_page.dart';
+import 'package:autisecure/mainScreens/test_screen.dart';
+import 'package:autisecure/mainScreens/doctor_screen.dart';
+import 'package:autisecure/mainScreens/profile.dart';
 import 'package:flutter/material.dart';
 
 class Landingscreen extends StatefulWidget {

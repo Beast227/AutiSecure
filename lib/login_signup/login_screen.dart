@@ -1,6 +1,6 @@
 // ignore: file_names
-import 'package:autisense/LandingScreen.dart';
-import 'package:autisense/login_signup/SignupScreen.dart';
+import 'package:autisecure/landing_screen.dart';
+import 'package:autisecure/login_signup/signup_screen.dart';
 import 'package:flutter/material.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -16,9 +16,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Widget _buildTextField(
     String label,
-    TextEditingController controller, {
-    bool obscureText = false,
-  }) {
+    TextEditingController controller,
+    bool obscureText,
+  ) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: TextFormField(
@@ -36,7 +36,7 @@ class _LoginScreenState extends State<LoginScreen> {
             borderRadius: BorderRadius.circular(10),
             borderSide: const BorderSide(color: Colors.purple, width: 2),
           ),
-          contentPadding: EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+          contentPadding: EdgeInsets.symmetric(horizontal: 15, vertical: 15),
         ),
       ),
     );
@@ -45,7 +45,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color.fromARGB(255, 255, 245, 227),
+      backgroundColor: const Color(0xFFFFF5E3),
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
         child: Column(
@@ -75,9 +75,9 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
             SizedBox(height: 20),
-            _buildTextField("Email", _emailController),
+            _buildTextField("Email", _emailController, false),
             SizedBox(height: 10),
-            _buildTextField("Password", _passwordController),
+            _buildTextField("Password", _passwordController, true),
             SizedBox(height: 20),
             ElevatedButton(
               onPressed:
