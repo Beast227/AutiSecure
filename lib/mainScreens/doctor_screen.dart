@@ -10,6 +10,10 @@ class DoctorScreen extends StatefulWidget {
 class _DoctorScreenState extends State<DoctorScreen> {
   @override
   Widget build(BuildContext context) {
-    return Scaffold(body: Text("Doctor Paveen is on board wait for some time"));
+    return Scaffold(
+      body: SingleChildScrollView(
+        child: Column(children: [SizedBox(height: 50), Text("Autism ")]),
+      ),
+    );
   }
 }

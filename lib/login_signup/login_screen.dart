@@ -1,7 +1,11 @@
 // ignore: file_names
+import 'dart:convert';
 import 'package:autisecure/landing_screen.dart';
 import 'package:autisecure/login_signup/signup_screen.dart';
+import 'package:autisecure/mainScreens/home_page.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -11,8 +15,66 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _checkIfLoggedIn(context);
+  }
+
+  Future<void> _checkIfLoggedIn(context) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    if (token != null && token.isNotEmpty) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => HomeScreen()),
+      );
+    }
+  }
+
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+
+  Future<void> submitLogin(context) async {
+    final url = Uri.parse(
+      "https://autisense-backend.onrender.com/api/user/login",
+    );
+
+    final Map<String, dynamic> data = {
+      "email": _emailController.text.trim(),
+      "password": _passwordController.text.trim(),
+    };
+
+    final response = await http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode(data),
+    );
+
+    if (response.statusCode == 200) {
+      final responseData = json.decode(response.body);
+      final message = responseData['message'];
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('token', responseData['token']);
+
+      _emailController.clear();
+      _passwordController.clear();
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => Landingscreen()),
+      );
+    } else {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Login Failed: ${response.body}")));
+    }
+  }
 
   Widget _buildTextField(
     String label,
@@ -48,92 +110,99 @@ class _LoginScreenState extends State<LoginScreen> {
       backgroundColor: const Color(0xFFFFF5E3),
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: Image.asset("assets/logo.png", width: 120),
-            ),
-            Text(
-              "AutiSecure",
-              style: TextStyle(
-                color: Color.fromARGB(255, 0, 0, 0),
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                fontFamily: "Merriweather",
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Padding(padding: EdgeInsets.symmetric(vertical: 20)),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Image.asset("assets/logo.png", width: 120),
               ),
-            ),
-            SizedBox(height: 20),
-            Text(
-              "User LogIn",
-              style: TextStyle(
-                fontFamily: "merriweather",
-                fontSize: 40,
-                color: Color(0xFF813400),
+              Text(
+                "AutiSecure",
+                style: TextStyle(
+                  color: Color.fromARGB(255, 0, 0, 0),
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: "Merriweather",
+                ),
               ),
-            ),
-            SizedBox(height: 20),
-            _buildTextField("Email", _emailController, false),
-            SizedBox(height: 10),
-            _buildTextField("Password", _passwordController, true),
-            SizedBox(height: 20),
-            ElevatedButton(
-              onPressed:
-                  () => {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const Landingscreen(),
+              SizedBox(height: 20),
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFFFFF),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                padding: EdgeInsets.all(20),
+                child: Column(
+                  children: [
+                    Text(
+                      "LogIn",
+                      style: TextStyle(
+                        fontFamily: "merriweather",
+                        fontSize: 40,
+                        color: Color(0xFF813400),
                       ),
                     ),
-                  },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(25),
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 30,
-                  vertical: 12,
-                ),
-              ),
-              child: const Text(
-                "LogIn",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-              ),
-            ),
-            Column(
-              children: [
-                SizedBox(height: 15),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text("Don't have an Account?"),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => SignUpScreen(),
-                          ),
-                        );
-                      },
-                      child: Text(
-                        "Register here",
-                        style: TextStyle(color: Colors.blue),
+
+                    SizedBox(height: 20),
+                    _buildTextField("Email", _emailController, false),
+                    SizedBox(height: 10),
+                    _buildTextField("Password", _passwordController, true),
+                    SizedBox(height: 20),
+                    ElevatedButton(
+                      onPressed: () => submitLogin(context),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(25),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 30,
+                          vertical: 12,
+                        ),
                       ),
+                      child: const Text(
+                        "LogIn",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                    Column(
+                      children: [
+                        SizedBox(height: 15),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text("Don't have an Account?"),
+                            TextButton(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => SignUpScreen(),
+                                  ),
+                                );
+                              },
+                              child: Text(
+                                "Register here",
+                                style: TextStyle(color: Colors.blue),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
-          ],
+              ),
+            ],
+          ),
         ),
       ),
     );
