@@ -1,3 +1,4 @@
+import 'package:autisecure/globals.dart' as globals;
 import 'package:autisecure/mainScreens/home_page.dart';
 import 'package:autisecure/mainScreens/test_screen.dart';
 import 'package:autisecure/mainScreens/doctor_screen.dart';
@@ -12,18 +13,16 @@ class Landingscreen extends StatefulWidget {
 }
 
 class _LandingscreenState extends State<Landingscreen> {
-  int selectedindex = 0; // Moved outside build to maintain state
-
-  final List<Widget> pages = [
-    const HomeScreen(),
-    const TestScreen(),
-    const DoctorScreen(),
-    const ProfileScreen(),
+  final List<Widget> pages = const [
+    HomeScreen(),
+    TestScreen(),
+    DoctorScreen(),
+    ProfileScreen(),
   ];
 
   void onItemTapped(int index) {
     setState(() {
-      selectedindex = index;
+      globals.selectedIndex = index;
     });
   }
 
@@ -58,7 +57,7 @@ class _LandingscreenState extends State<Landingscreen> {
     return BottomNavigationBar(
       selectedItemColor: Colors.orange,
       unselectedItemColor: Colors.black,
-      currentIndex: selectedindex,
+      currentIndex: globals.selectedIndex,
       onTap: onItemTapped,
       type: BottomNavigationBarType.fixed,
       items: const [
@@ -91,7 +90,7 @@ class _LandingscreenState extends State<Landingscreen> {
         backgroundColor: Colors.orange,
         title: buildHeader(),
       ),
-      body: pages[selectedindex],
+      body: pages[globals.selectedIndex],
       bottomNavigationBar: buildBottomNavBar(),
     );
   }

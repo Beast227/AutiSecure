@@ -40,6 +40,7 @@ dependencies:
   animated_splash_screen: ^1.3.0
   page_transition: ^2.2.1
   flutter_launcher_icons: ^0.14.4
+  provider: ^6.1.5+1
 
 dev_dependencies:
   flutter_test:
@@ -75,6 +76,7 @@ flutter:
     - assets/logo.png
     - assets/images/Doctor_Image.png
     - assets/images/video_analysis.png
+    - assets/quiz.json
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

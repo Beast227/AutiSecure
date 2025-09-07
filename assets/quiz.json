@@ -1,0 +1,15 @@
+[
+    {
+      "question": "What is the capital of France?",
+      "options": ["Berlin", "Madrid", "Paris", "Rome"]
+    },
+    {
+      "question": "Which planet is known as the Red Planet?",
+      "options": ["Earth", "Mars", "Jupiter", "Saturn"]
+    },
+    {
+      "question": "Who developed Flutter?",
+      "options": ["Facebook", "Apple", "Google", "Microsoft"]
+    }
+  ]
+  

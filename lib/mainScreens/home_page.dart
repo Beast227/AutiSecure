@@ -1,5 +1,5 @@
-import 'package:autisecure/mainScreens/doctor_screen.dart';
-import 'package:autisecure/mainScreens/test_screen.dart';
+import 'package:autisecure/globals.dart' as globals;
+import 'package:autisecure/landing_screen.dart';
 import 'package:autisecure/widgets/cards.dart';
 import 'package:flutter/material.dart';
 
@@ -19,7 +19,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color.fromARGB(43, 255, 212, 93),
+      backgroundColor: const Color(0x2BFFD45D),
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -34,9 +34,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 title: "Wanna Know your autistic or not  !?",
                 buttonText: "Take a Survey!",
                 onButtonPressed: () {
-                  Navigator.push(
+                  globals.selectedIndex = 1; // Test tab
+                  Navigator.pushReplacement(
                     context,
-                    MaterialPageRoute(builder: (context) => const TestScreen()),
+                    MaterialPageRoute(builder: (_) => const Landingscreen()),
                   );
                 },
               ),
@@ -45,9 +46,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 buttonText: "Upload  Video",
                 imageUrl: "assets/images/video_analysis.png",
                 onButtonPressed: () {
-                  Navigator.push(
+                  globals.selectedIndex = 1; // Doctor tab
+                  Navigator.pushReplacement(
                     context,
-                    MaterialPageRoute(builder: (context) => const TestScreen()),
+                    MaterialPageRoute(builder: (_) => const Landingscreen()),
                   );
                 },
               ),
@@ -56,11 +58,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 buttonText: "Check List of Doctors",
                 imageUrl: "assets/images/Doctor_Image.png",
                 onButtonPressed: () {
-                  Navigator.push(
+                  globals.selectedIndex = 2; // Doctor tab
+                  Navigator.pushReplacement(
                     context,
-                    MaterialPageRoute(
-                      builder: (context) => const DoctorScreen(),
-                    ),
+                    MaterialPageRoute(builder: (_) => const Landingscreen()),
                   );
                 },
               ),
