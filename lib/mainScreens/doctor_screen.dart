@@ -12,7 +12,7 @@ class _DoctorScreenState extends State<DoctorScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: SingleChildScrollView(
-        child: Column(children: [SizedBox(height: 50), Text("Autism ")]),
+        child: Column(children: [SizedBox(height: 50), Text("Doctors Screen")]),
       ),
     );
   }

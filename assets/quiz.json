@@ -1,15 +1,20 @@
-[
+{
+  "questions": [
     {
-      "question": "What is the capital of France?",
-      "options": ["Berlin", "Madrid", "Paris", "Rome"]
+      "question": "What is your favorite color?",
+      "options": ["Red", "Blue", "Green","Cat"]
     },
     {
-      "question": "Which planet is known as the Red Planet?",
-      "options": ["Earth", "Mars", "Jupiter", "Saturn"]
+      "question": "What is your favorite animal?",
+      "options": ["Dog", "Cat", "Elephant","paven"]
     },
     {
-      "question": "Who developed Flutter?",
-      "options": ["Facebook", "Apple", "Google", "Microsoft"]
+      "question": "What is your favorite animal?",
+      "options": ["Dog", "Cat", "Elephant","species"]
+    },
+    {
+      "question": "What is your favorite animal?",
+      "options": ["Dog", "Cat", "Elephant","Tiger"]
     }
   ]
-  
+}

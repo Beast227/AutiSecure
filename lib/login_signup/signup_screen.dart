@@ -14,6 +14,9 @@ class SignUpScreen extends StatefulWidget {
 }
 
 class _SignUpScreenState extends State<SignUpScreen> {
+  String dropDownValue = "User";
+  var users = ["User", "Doctor"];
+
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
   final TextEditingController nameController = TextEditingController();
@@ -22,6 +25,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final TextEditingController phController = TextEditingController();
   final TextEditingController addressController = TextEditingController();
   final TextEditingController dobController = TextEditingController();
+
+  // For the Doctor
+  final TextEditingController docInfo = TextEditingController();
+  final TextEditingController clinicLoc = TextEditingController();
+  final TextEditingController experience = TextEditingController();
+  final TextEditingController specialization = TextEditingController();
 
   @override
   void initState() {
@@ -165,7 +174,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           buildTextField("Phone Number", phController, false),
                           SizedBox(height: 10),
                           buildTextField("Address", addressController, false),
-                          SizedBox(height: 10),
+                          SizedBox(height: 20),
                           TextFormField(
                             controller: dobController,
                             readOnly: true,
@@ -190,7 +199,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               ),
                             ),
                           ),
-                          SizedBox(height: 10),
+                          SizedBox(height: 20),
                           buildTextField("Password", passwordController, true),
                           SizedBox(height: 10),
                           buildTextField(
@@ -199,9 +208,80 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             true,
                           ),
                           SizedBox(height: 20),
+                          // 👇 Replace your current Dropdown part with this:
+                          Container(
+                            width: double.infinity,
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              // Background color
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: Colors.purple,
+                                width: 1,
+                              ),
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              // Hide default underline
+                              child: DropdownButton<String>(
+                                value: dropDownValue,
+                                isExpanded: true, // Makes it take full width
+                                icon: Icon(
+                                  Icons.arrow_drop_down,
+                                  color: Colors.grey[600],
+                                ),
+                                items:
+                                    users.map((String i) {
+                                      return DropdownMenuItem(
+                                        value: i,
+                                        child: Text(
+                                          i,
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      );
+                                    }).toList(),
+                                onChanged: (String? newValue) {
+                                  setState(() {
+                                    dropDownValue = newValue!;
+                                  });
+                                },
+                                borderRadius: BorderRadius.circular(
+                                  8,
+                                ), // Dropdown menu background
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
+                    if (dropDownValue == "Doctor") ...[
+                      Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 10),
+                        child: Column(
+                          children: [
+                            SizedBox(height: 20),
+                            buildTextField(
+                              "Specialization",
+                              specialization,
+                              true,
+                            ),
+                            SizedBox(height: 10),
+                            buildTextField("Experience", experience, true),
+                            SizedBox(height: 10),
+                            buildTextField("About Yourself", docInfo, true),
+                            SizedBox(height: 10),
+                            buildTextField("Clinic Address", clinicLoc, true),
+                            SizedBox(height: 10),
+                          ],
+                        ),
+                      ),
+                    ],
+                    SizedBox(height: 20),
                     ElevatedButton(
                       onPressed: () => {submitRegistration(context)},
                       style: ElevatedButton.styleFrom(
