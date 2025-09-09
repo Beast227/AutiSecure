@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:page_transition/page_transition.dart';
 
+
 void main() {
   runApp(
     ChangeNotifierProvider(create: (_) => SurveyState(), child: const MyApp()),
