@@ -4,12 +4,13 @@ import 'package:autisecure/login_signup/login_screen.dart';
 import 'package:autisecure/mainScreens/home_page.dart';
 import 'package:autisecure/state_models/survey_state.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:page_transition/page_transition.dart';
 
-
-void main() {
+Future<void> main() async {
+  await dotenv.load(fileName: ".env");
   runApp(
     ChangeNotifierProvider(create: (_) => SurveyState(), child: const MyApp()),
   );

@@ -1,9 +1,12 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:autisecure/login_signup/login_screen.dart';
 import 'package:autisecure/mainScreens/home_page.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SignUpScreen extends StatefulWidget {
@@ -15,6 +18,7 @@ class SignUpScreen extends StatefulWidget {
 
 class _SignUpScreenState extends State<SignUpScreen> {
   String dropDownValue = "User";
+  File? doctorImage;
   var users = ["User", "Doctor"];
 
   final TextEditingController emailController = TextEditingController();
@@ -52,6 +56,17 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 
   Future<void> submitRegistration(context) async {
+    String? imageUrl;
+    if (dropDownValue == "Doctor" && doctorImage == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Upload the Doctor image properly")),
+      );
+      return;
+    }
+    if (dropDownValue == "Doctor" && doctorImage != null) {
+      imageUrl = await uploadDoctorimage(doctorImage!);
+    }
+
     final url = Uri.parse(
       'https://autisense-backend.onrender.com/api/user/register',
     );
@@ -63,7 +78,17 @@ class _SignUpScreenState extends State<SignUpScreen> {
       "address": addressController.text.trim(),
       "dob": dobController.text.trim(),
       "password": passwordController.text.trim(),
+      "role": dropDownValue,
     };
+    if (dropDownValue == "Doctor") {
+      data.addAll({
+        "specialization": specialization.text.trim(),
+        "experience": experience.text.trim(),
+        "about": docInfo.text.trim(),
+        "clinicAddress": clinicLoc.text.trim(),
+        "image": imageUrl,
+      });
+    }
 
     final response = await http.post(
       url,
@@ -90,6 +115,46 @@ class _SignUpScreenState extends State<SignUpScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Couldnt log in ${response.body}")),
       );
+    }
+  }
+
+  Future<void> pickDoctorImage() async {
+    final pickedFile = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+    );
+
+    if (pickedFile != null) {
+      setState(() {
+        doctorImage = File(pickedFile.path);
+      });
+    }
+  }
+
+  Future<String?> uploadDoctorimage(File imageFile) async {
+    final cloudName = dotenv.env['CLOUDINARY_CLOUD_NAME'];
+    final uploadPreset = dotenv.env['CLOUDINARY_UPLOAD_PRESET'];
+
+    final url = Uri.parse(
+      "https://api.cloudinary.com/v1_1/$cloudName/image/upload",
+    );
+
+    final request =
+        http.MultipartRequest("POST", url)
+          ..fields["upload_preset"] = uploadPreset!
+          ..files.add(
+            await http.MultipartFile.fromPath("file", imageFile.path),
+          );
+
+    final response = await request.send();
+
+    if (response.statusCode == 200) {
+      final res = await http.Response.fromStream(response);
+      final data = jsonDecode(res.body);
+      debugPrint("Upload Success");
+      return data["secure_url"];
+    } else {
+      debugPrint("Upload failed : ${response.statusCode}");
+      return null;
     }
   }
 
@@ -187,7 +252,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               );
                               if (pickedDate != null) {
                                 dobController.text =
-                                    "${pickedDate.toLocal()}".split(' ')[0];
+                                    dobController.text =
+                                        "${pickedDate.day.toString().padLeft(2, '0')}-${pickedDate.month.toString().padLeft(2, '0')}-${pickedDate.year}";
                               }
                             },
                             decoration: InputDecoration(
@@ -277,6 +343,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             SizedBox(height: 10),
                             buildTextField("Clinic Address", clinicLoc, true),
                             SizedBox(height: 10),
+                            doctorImage != null
+                                ? Image.file(doctorImage!, height: 120)
+                                : const Text("No image selected"),
+                            TextButton(
+                              onPressed: pickDoctorImage,
+                              child: const Text("Pick Profile Image"),
+                            ),
                           ],
                         ),
                       ),

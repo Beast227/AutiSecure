@@ -41,6 +41,7 @@ dependencies:
   page_transition: ^2.2.1
   flutter_launcher_icons: ^0.14.4
   provider: ^6.1.5+1
+  flutter_dotenv: ^6.0.0
 
 dev_dependencies:
   flutter_test:
@@ -77,6 +78,7 @@ flutter:
     - assets/images/Doctor_Image.png
     - assets/images/video_analysis.png
     - assets/quiz.json
+    - .env
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
