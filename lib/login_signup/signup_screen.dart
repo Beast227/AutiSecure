@@ -68,7 +68,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
     }
 
     final url = Uri.parse(
-      'https://autisense-backend.onrender.com/api/user/register',
+      dropDownValue == "Doctor"
+          ? 'https://autisense-backend.onrender.com/api/doctor/register'
+          : 'https://autisense-backend.onrender.com/api/user/register',
     );
 
     final Map<String, dynamic> data = {
@@ -78,17 +80,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
       "address": addressController.text.trim(),
       "dob": dobController.text.trim(),
       "password": passwordController.text.trim(),
-      "role": dropDownValue,
     };
     if (dropDownValue == "Doctor") {
       data.addAll({
-        "specialization": specialization.text.trim(),
+        "speciality": specialization.text.trim(),
         "experience": experience.text.trim(),
-        "about": docInfo.text.trim(),
+        "description": docInfo.text.trim(),
         "clinicAddress": clinicLoc.text.trim(),
-        "image": imageUrl,
+        "imageUrl": imageUrl,
       });
     }
+
+    // debugPrint(data as String?);
 
     final response = await http.post(
       url,
@@ -113,7 +116,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Couldnt log in ${response.body}")),
+        SnackBar(content: Text("Couldnt Register in ${response.body}")),
       );
     }
   }
@@ -334,14 +337,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             buildTextField(
                               "Specialization",
                               specialization,
-                              true,
+                              false,
                             ),
                             SizedBox(height: 10),
-                            buildTextField("Experience", experience, true),
+                            buildTextField("Experience", experience, false),
                             SizedBox(height: 10),
-                            buildTextField("About Yourself", docInfo, true),
+                            buildTextField("About Yourself", docInfo, false),
                             SizedBox(height: 10),
-                            buildTextField("Clinic Address", clinicLoc, true),
+                            buildTextField("Clinic Address", clinicLoc, false),
                             SizedBox(height: 10),
                             doctorImage != null
                                 ? Image.file(doctorImage!, height: 120)

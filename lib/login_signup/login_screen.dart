@@ -15,6 +15,8 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  String dropDownValue = "User";
+  var users = ["User", "Doctor"];
   @override
   void initState() {
     super.initState();
@@ -38,7 +40,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> submitLogin(context) async {
     final url = Uri.parse(
-      "https://autisense-backend.onrender.com/api/user/login",
+      dropDownValue == "Doctor"
+          ? "https://autisense-backend.onrender.com/api/doctor/login"
+          : "https://autisense-backend.onrender.com/api/user/login",
     );
 
     final Map<String, dynamic> data = {
@@ -58,6 +62,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('token', responseData['token']);
+      await prefs.setString('role', dropDownValue);
 
       _emailController.clear();
       _passwordController.clear();
@@ -146,7 +151,51 @@ class _LoginScreenState extends State<LoginScreen> {
                         color: Color(0xFF813400),
                       ),
                     ),
-
+                    SizedBox(height: 20),
+                    Container(
+                      width: double.infinity,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        // Background color
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.purple, width: 1),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        // Hide default underline
+                        child: DropdownButton<String>(
+                          value: dropDownValue,
+                          isExpanded: true, // Makes it take full width
+                          icon: Icon(
+                            Icons.arrow_drop_down,
+                            color: Colors.grey[600],
+                          ),
+                          items:
+                              users.map((String i) {
+                                return DropdownMenuItem(
+                                  value: i,
+                                  child: Text(
+                                    i,
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                          onChanged: (String? newValue) {
+                            setState(() {
+                              dropDownValue = newValue!;
+                            });
+                          },
+                          borderRadius: BorderRadius.circular(
+                            8,
+                          ), // Dropdown menu background
+                        ),
+                      ),
+                    ),
                     SizedBox(height: 20),
                     _buildTextField("Email", _emailController, false),
                     SizedBox(height: 10),
