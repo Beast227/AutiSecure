@@ -1,7 +1,14 @@
-import 'package:autisecure/widgets/question_card.dart';
-import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:autisecure/services/api_service.dart' as ApiService;
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import '../models/question_model.dart';
+import '../services/api_service.dart';
+import '../widgets/progress_header.dart';
+import '../widgets/question_card.dart';
+import '../widgets/navigation_buttons.dart';
+import '../state_models/survey_state.dart';
 
 class TestScreen extends StatefulWidget {
   const TestScreen({super.key});
@@ -11,277 +18,132 @@ class TestScreen extends StatefulWidget {
 }
 
 class _TestScreenState extends State<TestScreen> {
-  final List<Map<String, dynamic>> questions = [
-    {
-      "question": "What is your favorite color?",
-      "options": ["Red", "Blue", "Green", "Yellow"],
-    },
-    {
-      "question": "What is your favorite animal?",
-      "options": ["Dog", "Cat", "Rabbit", "Parrot"],
-    },
-    {
-      "question": "What is your favorite fruit?",
-      "options": ["Apple", "Banana", "Mango", "Grapes"],
-    },
-    {
-      "question": "What is your favorite sport?",
-      "options": ["Football", "Cricket", "Tennis", "Basketball"],
-    },
-  ];
+  List<QuestionModel> questions = [];
+  bool loading = true;
 
-  List<String?> selectedAnswers = [];
-  bool isSubmitting = false;
-  bool surveyOpen = false;
-  List<Map<String, dynamic>> submittedResults = [];
+  final List<String> fixedOptions = [
+    "Strongly Agree",
+    "Agree",
+    "Disagree",
+    "Strongly Disagree",
+  ];
 
   @override
   void initState() {
     super.initState();
-    _resetAnswers();
+    loadData();
   }
 
-  void _resetAnswers() {
-    selectedAnswers = List<String?>.filled(questions.length, null);
+  Future<void> loadData() async {
+    final String response = await rootBundle.loadString(
+      'assets/questions.json',
+    );
+    final List data = jsonDecode(response);
+
+    final loadedQuestions = data.map((q) => QuestionModel.fromJson(q)).toList();
+
+    // ignore: use_build_context_synchronously
+    final surveyState = context.read<SurveyState>();
+    surveyState.initialize(loadedQuestions.length);
+
+    setState(() {
+      questions = loadedQuestions;
+      loading = false;
+    });
   }
 
-  Future<void> _submitAnswers() async {
-    if (selectedAnswers.contains(null)) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Please answer all questions before submitting."),
-        ),
-      );
-      return;
+  double getProgress(List<int?> selectedAnswers) {
+    int answered = selectedAnswers.where((e) => e != null).length;
+    return questions.isNotEmpty ? answered / questions.length : 0;
+  }
+
+  Future<void> submitAnswers(BuildContext context) async {
+    final surveyState = context.read<SurveyState>();
+
+    // Convert selected indices directly to option strings
+    List<String> responses =
+        surveyState.selectedAnswers
+            .map((index) => index != null ? fixedOptions[index] : "")
+            .toList();
+
+    // Wrap the responses in a key "surveyResponse"
+    Map<String, dynamic> payload = {"surveyResponse": responses};
+
+    // Print payload
+    debugPrint("Survey Payload: ${jsonEncode(payload)}");
+
+    final result = await ApiService.submitSurvey(payload);
+    if (result.containsKey("score")) {
+      debugPrint("Received Score: ${result['score']}");
     }
 
-    setState(() => isSubmitting = true);
+    if (!mounted) return;
 
-    try {
-      final payload = List.generate(
-        questions.length,
-        (index) => {
-          "question": questions[index]["question"],
-          "answer": selectedAnswers[index],
-        },
-      );
+    ScaffoldMessenger.of(
+      // ignore: use_build_context_synchronously
+      context,
+    ).showSnackBar(SnackBar(content: Text(result["message"])));
 
-      debugPrint("Submitting answers: $payload");
-
-      final response = await http.post(
-        Uri.parse(
-          "https://your-backend-api.com/submit",
-        ), // replace with real API
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({"answers": payload}),
-      );
-
-      if (!mounted) return;
-
-      if (response.statusCode == 200) {
-        setState(() {
-          submittedResults = payload;
-          surveyOpen = false;
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Answers submitted successfully ✅")),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error: ${response.statusCode}")),
-        );
-      }
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Submission failed: $e")));
-    }
-
-    if (mounted) {
-      setState(() => isSubmitting = false);
+    if (result["success"]) {
+      surveyState.reset();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    int answeredCount =
-        selectedAnswers.where((answer) => answer != null).length;
+    if (loading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFFDEEE1),
-      body: SafeArea(
-        // Always check if survey data exists
-        child:
-            surveyOpen
-                ? _buildSurvey(answeredCount)
-                : submittedResults.isNotEmpty
-                ? _buildResults()
-                : _buildTakeSurveyButton(),
-      ),
-    );
-  }
-
-  Widget _buildSurvey(int answeredCount) {
-    return Column(
-      children: [
-        // Progress bar
-        Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: Column(
+    return Consumer<SurveyState>(
+      builder: (context, surveyState, _) {
+        return Scaffold(
+          backgroundColor: const Color(0x2BFFD45D),
+          body: Column(
             children: [
-              LinearProgressIndicator(
-                value: answeredCount / questions.length,
-                color: Colors.brown,
-                backgroundColor: Colors.grey[300],
+              ProgressHeader(
+                currentIndex: surveyState.currentIndex,
+                totalQuestions: questions.length,
+                progress: getProgress(surveyState.selectedAnswers),
               ),
-              const SizedBox(height: 6),
-              Text(
-                "$answeredCount/${questions.length} answered",
-                style: const TextStyle(fontWeight: FontWeight.bold),
+              const SizedBox(height: 20),
+              Expanded(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 300),
+                  transitionBuilder: (child, animation) {
+                    return SlideTransition(
+                      position: Tween<Offset>(
+                        begin: const Offset(1, 0),
+                        end: Offset.zero,
+                      ).animate(animation),
+                      child: child,
+                    );
+                  },
+                  child: QuestionCard(
+                    key: ValueKey(surveyState.currentIndex),
+                    question: questions[surveyState.currentIndex],
+                    options: fixedOptions,
+                    selectedAnswer:
+                        surveyState.selectedAnswers[surveyState.currentIndex],
+                    onOptionSelected: (value) {
+                      surveyState.updateAnswer(surveyState.currentIndex, value);
+                    },
+                  ),
+                ),
+              ),
+              NavigationButtons(
+                isFirstQuestion: surveyState.currentIndex == 0,
+                isLastQuestion:
+                    surveyState.currentIndex == questions.length - 1,
+                onNext: surveyState.nextQuestion,
+                onBack: surveyState.previousQuestion,
+                onSubmit: () => submitAnswers(context),
+                canSubmit: !surveyState.selectedAnswers.contains(null),
               ),
             ],
           ),
-        ),
-
-        // Survey content
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                ...List.generate(questions.length, (index) {
-                  final q = questions[index];
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 16.0),
-                    child: QuestionCard(
-                      question: q["question"],
-                      options: List<String>.from(q["options"]),
-                      selectedOption: selectedAnswers[index],
-                      onChanged: (val) {
-                        setState(() {
-                          selectedAnswers[index] = val;
-                        });
-                      },
-                    ),
-                  );
-                }),
-                // Submit button
-                Padding(
-                  padding: const EdgeInsets.only(top: 16.0),
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color.fromARGB(255, 255, 145, 0),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 40,
-                        vertical: 14,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    onPressed: isSubmitting ? null : _submitAnswers,
-                    child:
-                        isSubmitting
-                            ? const CircularProgressIndicator(
-                              color: Colors.white,
-                            )
-                            : const Text(
-                              "Submit",
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildResults() {
-    return Column(
-      children: [
-        Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: submittedResults.length,
-            itemBuilder: (context, index) {
-              final result = submittedResults[index];
-              return Card(
-                margin: const EdgeInsets.only(bottom: 12),
-                child: ListTile(
-                  title: Text(result["question"]),
-                  subtitle: Text("Your Answer: ${result["answer"]}"),
-                ),
-              );
-            },
-          ),
-        ),
-        // Take Survey Again button
-        Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color.fromARGB(255, 255, 145, 0),
-              padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            onPressed: () {
-              setState(() {
-                _resetAnswers();
-                surveyOpen = true;
-                submittedResults = [];
-              });
-            },
-            child: const Text(
-              "Take Survey Again",
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTakeSurveyButton() {
-    return Center(
-      child: ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: const Color.fromARGB(255, 255, 145, 0),
-          padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 14),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-        onPressed: () {
-          setState(() {
-            surveyOpen = true;
-            _resetAnswers();
-          });
-        },
-        child: const Text(
-          "Take Survey",
-          style: TextStyle(
-            fontSize: 16,
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

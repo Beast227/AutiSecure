@@ -1,55 +1,45 @@
 import 'package:flutter/material.dart';
+import '../models/question_model.dart';
 
 class QuestionCard extends StatelessWidget {
-  final String question;
+  final QuestionModel question;
   final List<String> options;
-  final String? selectedOption;
-  final Function(String?) onChanged;
+  final int? selectedAnswer;
+  final ValueChanged<int?> onOptionSelected;
 
   const QuestionCard({
     super.key,
     required this.question,
     required this.options,
-    required this.selectedOption,
-    required this.onChanged,
+    required this.selectedAnswer,
+    required this.onOptionSelected,
   });
 
   @override
   Widget build(BuildContext context) {
     return Card(
+      key: ValueKey(question.question),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 2,
       child: Padding(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              question,
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              question.question,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            SizedBox(height: 12),
-            Column(
-              children:
-                  options.map((option) {
-                    return Container(
-                      margin: EdgeInsets.only(bottom: 8),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: RadioListTile<String>(
-                        title: Text(
-                          option,
-                          style: TextStyle(fontStyle: FontStyle.italic),
-                        ),
-                        value: option,
-                        groupValue: selectedOption,
-                        onChanged: onChanged,
-                        activeColor: Colors.brown,
-                      ),
-                    );
-                  }).toList(),
+            const SizedBox(height: 12),
+            ...List.generate(
+              options.length,
+              (index) => RadioListTile<int>(
+                title: Text(options[index]),
+                value: index,
+                groupValue: selectedAnswer,
+                onChanged: onOptionSelected,
+              ),
             ),
           ],
         ),
