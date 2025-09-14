@@ -28,13 +28,28 @@ class NavigationButtons extends StatelessWidget {
           ElevatedButton(
             onPressed: isFirstQuestion ? null : onBack,
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.grey.shade400,
+              backgroundColor: const Color(0xFFFF0000),
             ),
-            child: Text("Back"),
+            child: Text(
+              "Back",
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
           ),
           ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFF7B00),
+            ),
             onPressed: isLastQuestion ? (canSubmit ? onSubmit : null) : onNext,
-            child: Text(isLastQuestion ? "Submit" : "Next"),
+            child: Text(
+              isLastQuestion ? "Submit" : "Next",
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
           ),
         ],
       ),

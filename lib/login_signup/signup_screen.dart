@@ -80,6 +80,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       "address": addressController.text.trim(),
       "dob": dobController.text.trim(),
       "password": passwordController.text.trim(),
+      "imageUrl": imageUrl,
     };
     if (dropDownValue == "Doctor") {
       data.addAll({
@@ -87,7 +88,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
         "experience": experience.text.trim(),
         "description": docInfo.text.trim(),
         "clinicAddress": clinicLoc.text.trim(),
-        "imageUrl": imageUrl,
       });
     }
 
@@ -345,18 +345,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             buildTextField("About Yourself", docInfo, false),
                             SizedBox(height: 10),
                             buildTextField("Clinic Address", clinicLoc, false),
-                            SizedBox(height: 10),
-                            doctorImage != null
-                                ? Image.file(doctorImage!, height: 120)
-                                : const Text("No image selected"),
-                            TextButton(
-                              onPressed: pickDoctorImage,
-                              child: const Text("Pick Profile Image"),
-                            ),
                           ],
                         ),
                       ),
                     ],
+                    SizedBox(height: 20),
+                    doctorImage != null
+                        ? Image.file(doctorImage!, height: 120)
+                        : const Text("No image selected"),
+                    TextButton(
+                      onPressed: pickDoctorImage,
+                      child: const Text("Pick Profile Image"),
+                    ),
                     SizedBox(height: 20),
                     ElevatedButton(
                       onPressed: () => {submitRegistration(context)},

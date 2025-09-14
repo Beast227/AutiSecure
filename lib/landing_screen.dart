@@ -1,5 +1,6 @@
 import 'package:autisecure/globals.dart' as globals;
 import 'package:autisecure/mainScreens/home_page.dart';
+import 'package:autisecure/mainScreens/liveChat.dart';
 import 'package:autisecure/mainScreens/test_screen.dart';
 import 'package:autisecure/mainScreens/doctor_screen.dart';
 import 'package:autisecure/mainScreens/profile.dart';
@@ -17,6 +18,7 @@ class _LandingscreenState extends State<Landingscreen> {
     HomeScreen(),
     TestScreen(),
     DoctorScreen(),
+    LiveChat(),
     ProfileScreen(),
   ];
 
@@ -72,6 +74,10 @@ class _LandingscreenState extends State<Landingscreen> {
         BottomNavigationBarItem(
           icon: Icon(Icons.local_hospital, size: 30),
           label: "Doctor",
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.chat, size: 30),
+          label: "Chat",
         ),
         BottomNavigationBarItem(
           icon: Icon(Icons.person, size: 30),

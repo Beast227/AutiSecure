@@ -12,10 +12,13 @@ import 'package:page_transition/page_transition.dart';
 Future<void> main() async {
   await dotenv.load(fileName: ".env");
   runApp(
-    ChangeNotifierProvider(create: (_) {
-      var surveyState = SurveyState();
-      return surveyState;
-    }, child: const MyApp()),
+    ChangeNotifierProvider(
+      create: (_) {
+        var surveyState = SurveyState();
+        return surveyState;
+      },
+      child: const MyApp(),
+    ),
   );
 }
 
