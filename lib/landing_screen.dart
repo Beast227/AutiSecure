@@ -18,7 +18,11 @@ class _LandingscreenState extends State<Landingscreen> {
     HomeScreen(),
     TestScreen(),
     DoctorScreen(),
-    LiveChat(),
+    LiveChat(
+      conversationId: "66ef123abc",
+      currentUserId: "user123",
+      token: "YOUR_JWT_TOKEN_HERE",
+    ),
     ProfileScreen(),
   ];
 

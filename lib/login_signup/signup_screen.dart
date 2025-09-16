@@ -63,9 +63,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       );
       return;
     }
-    if (dropDownValue == "Doctor" && doctorImage != null) {
-      imageUrl = await uploadDoctorimage(doctorImage!);
-    }
+    imageUrl = await uploadDoctorimage(doctorImage!);
 
     final url = Uri.parse(
       dropDownValue == "Doctor"

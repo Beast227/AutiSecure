@@ -17,6 +17,9 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   String? userRole;
   bool isLoading = true;
+
+  String? profileImageUrl; // <-- store image URL here
+
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _phController = TextEditingController();
@@ -29,6 +32,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final TextEditingController experience = TextEditingController();
   final TextEditingController specialization = TextEditingController();
 
+  File? _imageFile;
+
   @override
   void initState() {
     super.initState();
@@ -40,7 +45,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final role = prefs.getString('role');
     debugPrint("The Role is $role");
     userRole = role!;
-    debugPrint("The user Role is $userRole");
     final url = Uri.parse(
       role == "Doctor"
           ? "https://autisense-backend.onrender.com/api/doctor/data"
@@ -54,13 +58,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
       return;
     }
-    debugPrint("Token found: $token");
+
     final response = await http.get(
       url,
       headers: {'authorization': 'Bearer $token'},
     );
+
     try {
-      final responseData = await json.decode(response.body);
+      final responseData = json.decode(response.body);
       if (response.statusCode == 200) {
         setState(() {
           _nameController.text = responseData['name'] ?? '';
@@ -68,23 +73,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _phController.text = responseData['phone'] ?? '';
           _addressController.text = responseData['address'] ?? '';
           _dobController.text = responseData['dob'] ?? '';
-          docInfo.text = responseData['imageUrl'] ?? '';
-          experience.text = responseData['experience'].toString() ?? '';
+          docInfo.text = responseData['about'] ?? '';
+          experience.text = responseData['experience']?.toString() ?? '';
           clinicLoc.text = responseData['clinicAddress'] ?? '';
           specialization.text = responseData['speciality'] ?? '';
+          profileImageUrl = responseData['imageUrl']; // <-- store image URL
         });
         isLoading = false;
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("User Data Not Available ${responseData.message}"),
+            content: Text("User Data Not Available ${responseData['message']}"),
           ),
         );
       }
     } catch (e) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text("error $e")));
+      ).showSnackBar(SnackBar(content: Text("Error: $e")));
     }
   }
 
@@ -94,12 +100,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute(builder: (context) => LoginScreen()),
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
       (route) => false,
     );
   }
-
-  File? _imageFile;
 
   Future<void> _pickImage() async {
     final pickedFile = await ImagePicker().pickImage(
@@ -110,6 +114,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
       setState(() {
         _imageFile = File(pickedFile.path);
       });
+    }
+  }
+
+  /// Function to upload updated profile image
+  Future<void> _uploadProfileImage() async {
+    if (_imageFile == null) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    if (token == null) return;
+
+    final uri = Uri.parse(
+      userRole == "Doctor"
+          ? "https://autisense-backend.onrender.com/api/doctor/update-image"
+          : "https://autisense-backend.onrender.com/api/user/update-image",
+    );
+
+    final request = http.MultipartRequest('POST', uri);
+    request.headers['authorization'] = 'Bearer $token';
+    request.files.add(
+      await http.MultipartFile.fromPath('image', _imageFile!.path),
+    );
+
+    final response = await request.send();
+    if (response.statusCode == 200) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Profile Image Updated Successfully")),
+      );
+      getUserInfo(context); // refresh data
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Failed to update image. Code: ${response.statusCode}"),
+        ),
+      );
     }
   }
 
@@ -146,31 +185,74 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                             ),
                             const SizedBox(height: 20),
-                            GestureDetector(
-                              onTap: _pickImage,
-                              child: CircleAvatar(
-                                radius: 100,
-                                backgroundColor: Colors.white,
-                                backgroundImage:
-                                    _imageFile != null
-                                        ? FileImage(_imageFile!)
-                                        : null,
-                                child:
-                                    _imageFile == null
-                                        ? Icon(
-                                          Icons.camera_alt,
-                                          size: 50,
-                                          color: Colors.grey,
-                                        )
-                                        : null,
-                              ),
+
+                            // Profile Image + Edit Button
+                            Stack(
+                              alignment: Alignment.bottomRight,
+                              children: [
+                                CircleAvatar(
+                                  radius: 100,
+                                  backgroundColor: Colors.white,
+                                  backgroundImage:
+                                      _imageFile != null
+                                          ? FileImage(_imageFile!)
+                                          : (profileImageUrl != null
+                                                  ? NetworkImage(
+                                                    profileImageUrl!,
+                                                  )
+                                                  : null)
+                                              as ImageProvider?,
+                                  child:
+                                      _imageFile == null &&
+                                              profileImageUrl == null
+                                          ? const Icon(
+                                            Icons.person,
+                                            size: 80,
+                                            color: Colors.grey,
+                                          )
+                                          : null,
+                                ),
+                                Positioned(
+                                  bottom: 8,
+                                  right: 8,
+                                  child: GestureDetector(
+                                    onTap: _pickImage,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: const BoxDecoration(
+                                        color: Colors.white,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.edit,
+                                        color: Colors.black,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
+                            const SizedBox(height: 20),
+
+                            // Button to upload after picking image
+                            if (_imageFile != null)
+                              ElevatedButton.icon(
+                                onPressed: _uploadProfileImage,
+                                icon: const Icon(Icons.save),
+                                label: const Text("Save Profile Image"),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.orange,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                              ),
                             const SizedBox(height: 20),
                             _buildProfileForm(),
                           ],
                         ),
                       ),
-                      SizedBox(height: 20),
+                      const SizedBox(height: 20),
                       ElevatedButton(
                         onPressed: () => logOutBtn(context),
                         style: ElevatedButton.styleFrom(
@@ -181,7 +263,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
+                          children: const [
                             Icon(Icons.login, color: Colors.white, size: 20),
                             SizedBox(width: 15),
                             Text(
@@ -200,8 +282,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
               ),
-
-      // before this
     );
   }
 
@@ -215,13 +295,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
         buildTextField("DOB", _dobController),
         if (userRole == "Doctor") ...[
           buildTextField("Experience", experience),
-          SizedBox(height: 10),
+          const SizedBox(height: 10),
           buildTextField("About Yourself", docInfo),
-          SizedBox(height: 10),
+          const SizedBox(height: 10),
           buildTextField("Clinic Address", clinicLoc),
-          SizedBox(height: 10),
+          const SizedBox(height: 10),
           buildTextField("Specialization", specialization),
-          SizedBox(height: 10),
+          const SizedBox(height: 10),
         ],
       ],
     );
