@@ -83,6 +83,7 @@ flutter:
     - assets/images/video_analysis.png
     - .env
     - assets/questions.json
+    - assets/doctor_avatar.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

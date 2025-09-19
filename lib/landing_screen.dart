@@ -17,7 +17,7 @@ class _LandingscreenState extends State<Landingscreen> {
   final List<Widget> pages = const [
     HomeScreen(),
     TestScreen(),
-    DoctorScreen(),
+    DoctorListScreen(),
     LiveChat(
       conversationId: "66ef123abc",
       currentUserId: "user123",

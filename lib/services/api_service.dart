@@ -104,3 +104,29 @@ Future<Map<String, dynamic>> getSurveyScore() async {
     return {"error": e.toString()};
   }
 }
+
+class ApiService {
+  static const String baseurl = "https://autisense-backend.onrender.com/api";
+
+  static Future<List<Map<String, dynamic>>> fetchDoctors() async {
+    final response = await http.get(Uri.parse("$baseurl/doctor/all"));
+
+    if (response.statusCode == 200) {
+      final Map<String, dynamic> jsonBody = json.decode(response.body);
+      final List<dynamic> data = jsonBody['doctors'];
+      return data.cast<Map<String, dynamic>>();
+    } else {
+      throw Exception("Failed to load Doctors");
+    }
+  }
+
+  static Future<bool> bookAppointment(Map<String, dynamic> appointment) async {
+    final response = await http.post(
+      Uri.parse("$baseurl/appointments"),
+      headers: {"content-Type": "application/json"},
+      body: json.encode(appointment),
+    );
+
+    return response.statusCode == 201;
+  }
+}

@@ -15,7 +15,7 @@ class SocketService {
     if (_connected) return; // Prevent duplicate connections
 
     socket = io.io(
-      'https://my-chat-app.onrender.com', // Replace with Render backend URL
+      'https://autisense-backend.onrender.com/', // Replace with Render backend URL
       io.OptionBuilder()
           .setTransports(['websocket'])
           .enableForceNew()
@@ -36,7 +36,7 @@ class SocketService {
   }
 
   void joinRoom(String conversationId) {
-    socket.emit("joinRoom", conversationId);
+    socket.emit("joinConversation", conversationId);
   }
 
   void sendMessage(String conversationId, String senderId, String message) {
