@@ -1,15 +1,11 @@
-import 'package:autisecure/mainScreens/subScreen/Appointment.dart';
+import 'package:autisecure/mainScreens/subScreen/appointmentPage.dart';
 import 'package:flutter/material.dart';
 
 class DoctorCard extends StatelessWidget {
   final Map<String, dynamic> doctor;
-  final VoidCallback onBookPressed;
+  final VoidCallback? onBookPressed;
 
-  const DoctorCard({
-    super.key,
-    required this.doctor,
-    required this.onBookPressed,
-  });
+  const DoctorCard({super.key, required this.doctor, this.onBookPressed});
 
   @override
   Widget build(BuildContext context) {
@@ -79,8 +75,9 @@ class DoctorCard extends StatelessWidget {
                       ],
                       if (doctor['experience'] != null) ...[
                         const SizedBox(height: 18),
+
                         Text(
-                          "Experience: ${doctor['experience'] > 10 ? "10+" : doctor['experience']}",
+                          "Experience: ${int.tryParse(doctor['experience'].toString()) != null && int.parse(doctor['experience'].toString()) > 10 ? "10+" : doctor['experience'].toString()} years",
                           style: const TextStyle(
                             color: Color(0xFF0015FF),
                             fontFamily: "Merriweather",
@@ -88,6 +85,7 @@ class DoctorCard extends StatelessWidget {
                           ),
                         ),
                       ],
+
                       if (doctor['description'] != null) ...[
                         const SizedBox(height: 18),
                         Text(
@@ -114,114 +112,35 @@ class DoctorCard extends StatelessWidget {
               ],
             ),
 
-            const SizedBox(height: 12),
-
-            // Full-width Book Button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  showModalBottomSheet(
-                    context: context,
-                    isScrollControlled: true,
-                    shape: const RoundedRectangleBorder(
-                      borderRadius: BorderRadius.vertical(
-                        top: Radius.circular(20),
+            if (onBookPressed != null) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => AppointmentPage(doctor: doctor),
                       ),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    builder: (context) {
-                      return Padding(
-                        padding: EdgeInsets.only(
-                          bottom: MediaQuery.of(context).viewInsets.bottom,
-                          left: 16,
-                          right: 16,
-                          top: 20,
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Center(
-                              child: Text(
-                                "Book Appointment",
-                                style: const TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-
-                            // Example fields
-                            TextField(
-                              decoration: const InputDecoration(
-                                labelText: "Select Date",
-                                prefixIcon: Icon(Icons.calendar_today),
-                                border: OutlineInputBorder(),
-                              ),
-                              readOnly: true,
-                              onTap: () async {
-                                final DateTime? pickedDate =
-                                    await showDatePicker(
-                                      context: context,
-                                      initialDate: DateTime.now(),
-                                      firstDate: DateTime.now(),
-                                      lastDate: DateTime(2100),
-                                    );
-                              },
-                            ),
-                            const SizedBox(height: 12),
-
-                            TextField(
-                              decoration: const InputDecoration(
-                                labelText: "Reason for Visit",
-                                prefixIcon: Icon(Icons.note),
-                                border: OutlineInputBorder(),
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton(
-                                onPressed: () {
-                                  Navigator.pop(context); // close bottom sheet
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        "Appointment booked with Dr. ${doctor['name']}",
-                                      ),
-                                    ),
-                                  );
-                                },
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.orange,
-                                ),
-                                child: const Text("Confirm Appointment"),
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                          ],
-                        ),
-                      );
-                    },
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  icon: const Icon(Icons.calendar_month),
+                  label: const Text(
+                    "Book an Appointment",
+                    style: TextStyle(fontSize: 16),
                   ),
                 ),
-                icon: const Icon(Icons.calendar_month),
-                label: const Text(
-                  "Book an Appointment",
-                  style: TextStyle(fontSize: 16),
-                ),
               ),
-            ),
+            ],
           ],
         ),
       ),

@@ -41,6 +41,7 @@ class _TestScreenState extends State<TestScreen> {
   void initState() {
     super.initState();
     loadData();
+    // aqScore=ApiService.getSurveyScore();
   }
 
   Future<void> loadData() async {

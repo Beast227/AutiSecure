@@ -96,6 +96,7 @@ Future<Map<String, dynamic>> getSurveyScore() async {
       }, // JSON object with key "surveyResponse"
     ); // replace with your GET route
     if (response.statusCode == 200) {
+      debugPrint("$response");
       return jsonDecode(response.body);
     } else {
       return {"error": "Failed to fetch score"};

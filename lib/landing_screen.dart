@@ -14,16 +14,16 @@ class Landingscreen extends StatefulWidget {
 }
 
 class _LandingscreenState extends State<Landingscreen> {
-  final List<Widget> pages = const [
-    HomeScreen(),
-    TestScreen(),
-    DoctorListScreen(),
-    LiveChat(
+  final List<Widget> pages = [
+    const HomeScreen(),
+    const TestScreen(),
+    const DoctorListScreen(),
+    const LiveChat(
       conversationId: "66ef123abc",
       currentUserId: "user123",
       token: "YOUR_JWT_TOKEN_HERE",
     ),
-    ProfileScreen(),
+    const ProfileScreen(),
   ];
 
   void onItemTapped(int index) {
