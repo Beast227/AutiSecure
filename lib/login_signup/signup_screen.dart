@@ -104,7 +104,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
       phController.clear();
       addressController.clear();
       dobController.clear();
-
+      
+      debugPrint("the message is ${response.body}");
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("successfuly logged in ${response.body}")),
       );
@@ -221,61 +222,20 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Text(
-                      "User Registration",
+                      dropDownValue == "User"
+                          ? "User Registration"
+                          : "Doctor Registration",
                       style: TextStyle(
                         fontFamily: "merriweather",
-                        fontSize: 40,
+                        fontSize: 36,
                         color: Color(0xFF813400),
                       ),
                     ),
+                    SizedBox(height: 20),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 10),
                       child: Column(
                         children: [
-                          SizedBox(height: 20),
-                          buildTextField("Name", nameController, false),
-                          SizedBox(height: 10),
-                          buildTextField("Email", emailController, false),
-                          SizedBox(height: 10),
-                          buildTextField("Phone Number", phController, false),
-                          SizedBox(height: 10),
-                          buildTextField("Address", addressController, false),
-                          SizedBox(height: 20),
-                          TextFormField(
-                            controller: dobController,
-                            readOnly: true,
-                            onTap: () async {
-                              DateTime? pickedDate = await showDatePicker(
-                                context: context,
-                                initialDate: DateTime.now(),
-                                firstDate: DateTime(1900),
-                                lastDate: DateTime.now(),
-                              );
-                              if (pickedDate != null) {
-                                dobController.text =
-                                    dobController.text =
-                                        "${pickedDate.day.toString().padLeft(2, '0')}-${pickedDate.month.toString().padLeft(2, '0')}-${pickedDate.year}";
-                              }
-                            },
-                            decoration: InputDecoration(
-                              labelText: "DOB",
-                              fillColor: Colors.white,
-                              filled: true,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                            ),
-                          ),
-                          SizedBox(height: 20),
-                          buildTextField("Password", passwordController, true),
-                          SizedBox(height: 10),
-                          buildTextField(
-                            "Confirm Password",
-                            confirmPasswordController,
-                            true,
-                          ),
-                          SizedBox(height: 20),
-                          // 👇 Replace your current Dropdown part with this:
                           Container(
                             width: double.infinity,
                             padding: EdgeInsets.symmetric(
@@ -323,6 +283,49 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               ),
                             ),
                           ),
+
+                          SizedBox(height: 20),
+                          buildTextField("Name", nameController, false),
+                          SizedBox(height: 10),
+                          buildTextField("Email", emailController, false),
+                          SizedBox(height: 10),
+                          buildTextField("Phone Number", phController, false),
+                          SizedBox(height: 10),
+                          buildTextField("Address", addressController, false),
+                          SizedBox(height: 20),
+                          TextFormField(
+                            controller: dobController,
+                            readOnly: true,
+                            onTap: () async {
+                              DateTime? pickedDate = await showDatePicker(
+                                context: context,
+                                initialDate: DateTime.now(),
+                                firstDate: DateTime(1900),
+                                lastDate: DateTime.now(),
+                              );
+                              if (pickedDate != null) {
+                                dobController.text =
+                                    dobController.text =
+                                        "${pickedDate.day.toString().padLeft(2, '0')}-${pickedDate.month.toString().padLeft(2, '0')}-${pickedDate.year}";
+                              }
+                            },
+                            decoration: InputDecoration(
+                              labelText: "DOB",
+                              fillColor: Colors.white,
+                              filled: true,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                          ),
+                          SizedBox(height: 20),
+                          buildTextField("Password", passwordController, true),
+                          SizedBox(height: 10),
+                          buildTextField(
+                            "Confirm Password",
+                            confirmPasswordController,
+                            true,
+                          ),
                         ],
                       ),
                     ),
@@ -331,7 +334,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         padding: EdgeInsets.symmetric(horizontal: 10),
                         child: Column(
                           children: [
-                            SizedBox(height: 20),
+                            SizedBox(height: 10),
                             buildTextField(
                               "Specialization",
                               specialization,

@@ -1,5 +1,6 @@
 // ignore: file_names
 import 'dart:convert';
+import 'package:autisecure/admin_landing_screen.dart';
 import 'package:autisecure/landing_screen.dart';
 import 'package:autisecure/login_signup/signup_screen.dart';
 import 'package:autisecure/mainScreens/home_page.dart';
@@ -16,7 +17,7 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   String dropDownValue = "User";
-  var users = ["User", "Doctor"];
+  var users = ["User", "Doctor", "Admin"];
   @override
   void initState() {
     super.initState();
@@ -26,11 +27,20 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _checkIfLoggedIn(context) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
+    final role = prefs.getString('role');
 
     if (token != null && token.isNotEmpty) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => HomeScreen()),
+        MaterialPageRoute(
+          builder:
+              (_) =>
+                  role == "Doctor" || role == "User"
+                      ? HomeScreen()
+                      : role == "Admin"
+                      ? AdminLandingScreen()
+                      : LoginScreen(),
+        ),
       );
     }
   }
@@ -42,6 +52,8 @@ class _LoginScreenState extends State<LoginScreen> {
     final url = Uri.parse(
       dropDownValue == "Doctor"
           ? "https://autisense-backend.onrender.com/api/doctor/login"
+          : dropDownValue == "Admin"
+          ? "https://autisense-backend.onrender.com/api/admin/login"
           : "https://autisense-backend.onrender.com/api/user/login",
     );
 
@@ -72,7 +84,13 @@ class _LoginScreenState extends State<LoginScreen> {
       ).showSnackBar(SnackBar(content: Text(message)));
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (context) => Landingscreen()),
+        MaterialPageRoute(
+          builder:
+              (context) =>
+                  dropDownValue == "Admin"
+                      ? AdminLandingScreen()
+                      : Landingscreen(),
+        ),
       );
     } else {
       ScaffoldMessenger.of(

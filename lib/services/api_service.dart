@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -8,9 +7,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 Future<Map<String, dynamic>> submitSurvey(Map<String, dynamic> payload) async {
   final prefs = await SharedPreferences.getInstance();
   final token = prefs.getString('token');
-  final storedSurveyId = prefs.getString(
-    'surveyId',
-  ); // ✅ check if survey already exists
+  final storedSurveyId = prefs.getString('surveyId');
+
+  debugPrint("$storedSurveyId");
 
   if (token == null || token.isEmpty) {
     return {
@@ -62,25 +61,28 @@ Future<Map<String, dynamic>> submitSurvey(Map<String, dynamic> payload) async {
   }
 }
 
-Future<Map<String, dynamic>> analyzeASDVideo(File videoFile) async {
-  try {
-    final uri = Uri.parse("https://your-backend.com/analyze-asd");
-    final request = http.MultipartRequest("POST", uri);
+Future<Map<String, dynamic>> analyzeASDVideoUrl(String videoUrl) async {
+  final prefs = await SharedPreferences.getInstance();
+  final token = prefs.getString('token');
+  final apiEndpoint = Uri.parse(
+    "https://autisense-backend.onrender.com/api/video/analyze",
+  );
 
-    request.files.add(
-      await http.MultipartFile.fromPath("video", videoFile.path),
-    );
+  final response = await http.post(
+    apiEndpoint,
+    headers: {
+      'Content-Type': 'application/json',
+      "Authorization": "Barer $token",
+    },
+    body: jsonEncode({"videoUrl": videoUrl}),
+  );
 
-    final response = await request.send();
-    final responseData = await response.stream.bytesToString();
-
-    if (response.statusCode == 200) {
-      return jsonDecode(responseData);
-    } else {
-      return {"analysis": "Failed to analyze video", "success": false};
-    }
-  } catch (e) {
-    return {"analysis": "Error: $e", "success": false};
+  debugPrint("analysing the video");
+  if (response.statusCode == 200) {
+    debugPrint(response.body);
+    return jsonDecode(response.body);
+  } else {
+    throw Exception("Failed to analyze video: ${response.body}");
   }
 }
 

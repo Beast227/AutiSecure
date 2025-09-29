@@ -3,11 +3,14 @@ import 'dart:io';
 import 'package:autisecure/services/api_service.dart' as api_service;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:percent_indicator/circular_percent_indicator.dart'; // for animated score
-import 'package:animate_do/animate_do.dart'; // for animations
+import 'package:percent_indicator/circular_percent_indicator.dart';
+import 'package:animate_do/animate_do.dart';
+import 'package:video_player/video_player.dart';
 import '../models/question_model.dart';
 import '../widgets/progress_header.dart';
 import '../widgets/question_card.dart';
@@ -28,7 +31,7 @@ class _TestScreenState extends State<TestScreen> {
   bool showScoreAnimation = false;
 
   File? selectedVideo;
-  String? asdResult;
+  VideoPlayerController? _videoController;
 
   final List<String> fixedOptions = [
     "Strongly Agree",
@@ -41,7 +44,57 @@ class _TestScreenState extends State<TestScreen> {
   void initState() {
     super.initState();
     loadData();
-    // aqScore=ApiService.getSurveyScore();
+  }
+
+  @override
+  void dispose() {
+    _videoController?.dispose();
+    super.dispose();
+  }
+
+  Future<String?> uploadVideoToCloudinary(File videoFile) async {
+    final cloudName = dotenv.env['CLOUDINARY_CLOUD_NAME'];
+    final uploadPreset = dotenv.env['CLOUDINARY_UPLOAD_PRESET'];
+
+    final url = Uri.parse(
+      "https://api.cloudinary.com/v1_1/$cloudName/video/upload",
+    );
+
+    final request =
+        http.MultipartRequest("POST", url)
+          ..fields["upload_preset"] = uploadPreset!
+          ..files.add(
+            await http.MultipartFile.fromPath("file", videoFile.path),
+          );
+
+    final response = await request.send();
+
+    if (response.statusCode == 200) {
+      final res = await http.Response.fromStream(response);
+      final data = jsonDecode(res.body);
+      debugPrint("✅ Video uploaded: ${data["secure_url"]}");
+      return data["secure_url"];
+    } else {
+      debugPrint("❌ Video upload failed: ${response.statusCode}");
+      return null;
+    }
+  }
+
+  Future<void> analyzeVideo() async {
+    if (selectedVideo == null) return;
+
+    final videoUrl = await uploadVideoToCloudinary(selectedVideo!);
+
+    if (videoUrl == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Video upload failed.")));
+      return;
+    }
+
+    debugPrint("Uploading the video into cloudinary ");
+    await api_service.analyzeASDVideoUrl(videoUrl);
+    debugPrint("\nEnd of analysis");
   }
 
   Future<void> loadData() async {
@@ -53,7 +106,6 @@ class _TestScreenState extends State<TestScreen> {
       final loadedQuestions =
           data.map((q) => QuestionModel.fromJson(q)).toList();
 
-      // ignore: use_build_context_synchronously
       final surveyState = context.read<SurveyState>();
       surveyState.initialize(loadedQuestions.length);
 
@@ -100,7 +152,6 @@ class _TestScreenState extends State<TestScreen> {
     final result = await api_service.submitSurvey(payload);
     debugPrint("Submit API response: $result");
 
-    // ✅ Extract actual score
     if (result["score"] != null) {
       setState(() {
         aqScore = result["score"];
@@ -117,7 +168,6 @@ class _TestScreenState extends State<TestScreen> {
 
     if (!mounted) return;
 
-    // ignore: use_build_context_synchronously
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(result["message"] ?? "Survey submitted successfully"),
@@ -129,17 +179,13 @@ class _TestScreenState extends State<TestScreen> {
     final picker = ImagePicker();
     final picked = await picker.pickVideo(source: ImageSource.gallery);
     if (picked != null) {
+      _videoController?.dispose(); // Dispose previous controller
+      _videoController = VideoPlayerController.file(File(picked.path))
+        ..initialize().then((_) {
+          setState(() {}); // Refresh UI
+        });
       setState(() => selectedVideo = File(picked.path));
     }
-  }
-
-  Future<void> analyzeVideo() async {
-    if (selectedVideo == null) return;
-
-    final result = await api_service.analyzeASDVideo(selectedVideo!);
-    setState(() {
-      asdResult = result["analysis"];
-    });
   }
 
   double getProgress(List<int?> selectedAnswers) {
@@ -238,8 +284,7 @@ class _TestScreenState extends State<TestScreen> {
                       ),
                     ),
                   ),
-                SizedBox(height: 20),
-
+                const SizedBox(height: 20),
                 FadeInDown(
                   child: ProgressHeader(
                     currentIndex: surveyState.currentIndex,
@@ -248,7 +293,6 @@ class _TestScreenState extends State<TestScreen> {
                   ),
                 ),
                 const SizedBox(height: 20),
-
                 AnimatedSwitcher(
                   duration: const Duration(milliseconds: 400),
                   transitionBuilder:
@@ -270,9 +314,7 @@ class _TestScreenState extends State<TestScreen> {
                     },
                   ),
                 ),
-
                 const SizedBox(height: 10),
-
                 NavigationButtons(
                   isFirstQuestion: surveyState.currentIndex == 0,
                   isLastQuestion:
@@ -282,11 +324,8 @@ class _TestScreenState extends State<TestScreen> {
                   onSubmit: () => submitAnswers(context),
                   canSubmit: !surveyState.selectedAnswers.contains(null),
                 ),
-
                 const SizedBox(height: 20),
-
                 const Divider(thickness: 2, height: 40),
-
                 FadeInUp(
                   child: Column(
                     children: [
@@ -326,26 +365,47 @@ class _TestScreenState extends State<TestScreen> {
                           ),
                         ],
                       ),
-                      if (asdResult != null)
-                        BounceInDown(
-                          child: Card(
-                            color: Colors.blue.shade50,
-                            margin: const EdgeInsets.only(top: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Text(
-                                "ASD Analysis Result:\n$asdResult",
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                      const SizedBox(height: 20),
+                      // Video Preview
+                      if (_videoController != null &&
+                          _videoController!.value.isInitialized)
+                        Column(
+                          children: [
+                            Text(
+                              "Selected Video Preview",
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.deepOrange.shade800,
                               ),
                             ),
-                          ),
+                            const SizedBox(height: 10),
+                            AspectRatio(
+                              aspectRatio: _videoController!.value.aspectRatio,
+                              child: VideoPlayer(_videoController!),
+                            ),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                IconButton(
+                                  icon: Icon(
+                                    _videoController!.value.isPlaying
+                                        ? Icons.pause_circle_filled
+                                        : Icons.play_circle_filled,
+                                    size: 40,
+                                    color: Colors.deepOrange.shade700,
+                                  ),
+                                  onPressed: () {
+                                    setState(() {
+                                      _videoController!.value.isPlaying
+                                          ? _videoController!.pause()
+                                          : _videoController!.play();
+                                    });
+                                  },
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                     ],
                   ),

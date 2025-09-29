@@ -1,4 +1,5 @@
 import 'package:animated_splash_screen/animated_splash_screen.dart';
+import 'package:autisecure/admin_landing_screen.dart';
 import 'package:autisecure/landing_screen.dart';
 import 'package:autisecure/login_signup/login_screen.dart';
 import 'package:autisecure/mainScreens/home_page.dart';
@@ -57,9 +58,15 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _checkIsLoggedIn() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
+    final role = prefs.getString('role');
     bool isLoggedIn = token != null && token.isNotEmpty;
     setState(() {
-      nextScreen = isLoggedIn ? const Landingscreen() : const LoginScreen();
+      nextScreen =
+          isLoggedIn
+              ? role == "Admin"
+                  ? AdminLandingScreen()
+                  : Landingscreen()
+              : LoginScreen();
     });
   }
 

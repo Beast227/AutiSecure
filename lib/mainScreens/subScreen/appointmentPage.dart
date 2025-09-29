@@ -1,6 +1,10 @@
 // ignore: file_names
+import 'dart:convert';
+
 import 'package:autisecure/widgets/doctor_card.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AppointmentPage extends StatefulWidget {
   final Map<String, dynamic> doctor;
@@ -23,6 +27,63 @@ class _AppointmentPageState extends State<AppointmentPage> {
   void dispose() {
     reasonController.dispose();
     super.dispose();
+  }
+
+  Future<void> bookApointment(context) async {
+    if (startDate == null ||
+        endDate == null ||
+        startTime == null ||
+        endTime == null ||
+        reasonController.text.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Please fill all fields.")));
+      return;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    final url = Uri.parse(
+      "https://autisense-backend.onrender.com/api/appointments/create",
+    );
+    final token = prefs.getString('token');
+
+    if (token == null || token.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Token not found. Please log in again.")),
+      );
+      return;
+    }
+
+    final body = {
+      "doctorId": widget.doctor["_id"],
+      "appointmentStartDate": startDate?.toIso8601String(),
+      "appointmentEndDate": endDate?.toIso8601String(),
+      "appointmentStartTime": startTime?.format(context),
+      "appointmentEndTime": endTime?.format(context),
+      "description": reasonController.text,
+    };
+    debugPrint("Data to be sent : $body");
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Barer $token",
+        },
+        body: jsonEncode(body),
+      );
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        debugPrint("THe appointment has been submitted!!\n\n");
+      } else {
+        debugPrint(
+          "The appointment couldnt be booked due to :${response.body}",
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Error: $e")));
+    }
   }
 
   Widget buildHeader() {
@@ -176,24 +237,7 @@ class _AppointmentPageState extends State<AppointmentPage> {
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: () {
-                  if (startDate == null ||
-                      endDate == null ||
-                      startTime == null ||
-                      endTime == null ||
-                      reasonController.text.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Please fill all fields.")),
-                    );
-                    return;
-                  }
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        "Appointment booked with Dr. ${widget.doctor['name']}",
-                      ),
-                    ),
-                  );
+                  bookApointment(context);
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.orange,

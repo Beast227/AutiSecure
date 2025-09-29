@@ -17,8 +17,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   String? userRole;
   bool isLoading = true;
-
-  String? profileImageUrl; // <-- store image URL here
+  String? profileImageUrl;
 
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
@@ -26,7 +25,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final TextEditingController _addressController = TextEditingController();
   final TextEditingController _dobController = TextEditingController();
 
-  // for Doctor
+  // Doctor-specific controllers
   final TextEditingController docInfo = TextEditingController();
   final TextEditingController clinicLoc = TextEditingController();
   final TextEditingController experience = TextEditingController();
@@ -40,18 +39,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
     getUserInfo(context);
   }
 
-  Future<void> getUserInfo(context) async {
+  Future<void> getUserInfo(BuildContext context) async {
     final prefs = await SharedPreferences.getInstance();
     final role = prefs.getString('role');
-    debugPrint("The Role is $role");
-    userRole = role!;
+    userRole = role;
+
     final url = Uri.parse(
       role == "Doctor"
           ? "https://autisense-backend.onrender.com/api/doctor/data"
+          : role == "Admin"
+          ? "https://autisense-backend.onrender.com/api/admin"
           : "https://autisense-backend.onrender.com/api/user/data",
     );
-    final token = prefs.getString('token');
 
+    final token = prefs.getString('token');
     if (token == null || token.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Token not found. Please log in again.")),
@@ -59,13 +60,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return;
     }
 
-    final response = await http.get(
-      url,
-      headers: {'authorization': 'Bearer $token'},
-    );
-
     try {
+      final response = await http.get(
+        url,
+        headers: {'authorization': 'Bearer $token'},
+      );
       final responseData = json.decode(response.body);
+
       if (response.statusCode == 200) {
         setState(() {
           _nameController.text = responseData['name'] ?? '';
@@ -73,19 +74,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _phController.text = responseData['phone'] ?? '';
           _addressController.text = responseData['address'] ?? '';
           _dobController.text = responseData['dob'] ?? '';
-          docInfo.text = responseData['about'] ?? '';
-          experience.text = responseData['experience']?.toString() ?? '';
-          clinicLoc.text = responseData['clinicAddress'] ?? '';
-          specialization.text = responseData['speciality'] ?? '';
-          profileImageUrl = responseData['imageUrl']; // <-- store image URL
+          profileImageUrl = responseData['imageUrl'];
+
+          if (role == "Doctor") {
+            docInfo.text = responseData['description'] ?? '';
+            experience.text = responseData['experience']?.toString() ?? '';
+            clinicLoc.text = responseData['clinicAddress'] ?? '';
+            specialization.text = responseData['speciality'] ?? '';
+          }
+          isLoading = false;
         });
-        isLoading = false;
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("User Data Not Available ${responseData['message']}"),
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("User Data Not Available")));
       }
     } catch (e) {
       ScaffoldMessenger.of(
@@ -94,10 +96,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  Future<void> logOutBtn(context) async {
+  Future<void> logOutBtn(BuildContext context) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('token');
-
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (context) => const LoginScreen()),
@@ -111,16 +112,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
 
     if (pickedFile != null) {
-      setState(() {
-        _imageFile = File(pickedFile.path);
-      });
+      setState(() => _imageFile = File(pickedFile.path));
     }
   }
 
-  /// Function to upload updated profile image
   Future<void> _uploadProfileImage() async {
     if (_imageFile == null) return;
-
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
     if (token == null) return;
@@ -142,13 +139,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Profile Image Updated Successfully")),
       );
-      getUserInfo(context); // refresh data
+      getUserInfo(context);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Failed to update image. Code: ${response.statusCode}"),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Failed to update image")));
     }
   }
 
@@ -158,40 +153,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
       body:
           isLoading
               ? const Center(child: CircularProgressIndicator())
-              : Center(
+              : SafeArea(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(16),
                   child: Column(
                     children: [
+                      // Profile Header
                       Container(
+                        padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: const Color.fromARGB(255, 255, 232, 188),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 30,
-                          horizontal: 20,
+                          color: const Color(0xFFFFF2E0),
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black12,
+                              blurRadius: 6,
+                              offset: Offset(0, 3),
+                            ),
+                          ],
                         ),
                         child: Column(
-                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Text(
-                              "Profile",
-                              style: TextStyle(
-                                fontSize: 40,
-                                fontWeight: FontWeight.bold,
-                                fontFamily: "Merriweather",
-                                color: Color(0xFF8B5400),
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-
-                            // Profile Image + Edit Button
                             Stack(
                               alignment: Alignment.bottomRight,
                               children: [
                                 CircleAvatar(
-                                  radius: 100,
+                                  radius: 60,
                                   backgroundColor: Colors.white,
                                   backgroundImage:
                                       _imageFile != null
@@ -207,75 +194,69 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                               profileImageUrl == null
                                           ? const Icon(
                                             Icons.person,
-                                            size: 80,
+                                            size: 60,
                                             color: Colors.grey,
                                           )
                                           : null,
                                 ),
                                 Positioned(
-                                  bottom: 8,
-                                  right: 8,
-                                  child: GestureDetector(
+                                  bottom: 0,
+                                  right: 0,
+                                  child: InkWell(
                                     onTap: _pickImage,
-                                    child: Container(
-                                      padding: const EdgeInsets.all(8),
-                                      decoration: const BoxDecoration(
-                                        color: Colors.white,
-                                        shape: BoxShape.circle,
-                                      ),
+                                    child: CircleAvatar(
+                                      radius: 20,
+                                      backgroundColor: Colors.orange,
                                       child: const Icon(
                                         Icons.edit,
-                                        color: Colors.black,
+                                        color: Colors.white,
+                                        size: 18,
                                       ),
                                     ),
                                   ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 20),
-
-                            // Button to upload after picking image
-                            if (_imageFile != null)
+                            if (_imageFile != null) ...[
+                              const SizedBox(height: 10),
                               ElevatedButton.icon(
                                 onPressed: _uploadProfileImage,
                                 icon: const Icon(Icons.save),
-                                label: const Text("Save Profile Image"),
+                                label: const Text("Save Image"),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.orange,
                                   shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
+                                    borderRadius: BorderRadius.circular(12),
                                   ),
                                 ),
                               ),
+                            ],
                             const SizedBox(height: 20),
                             _buildProfileForm(),
                           ],
                         ),
                       ),
                       const SizedBox(height: 20),
-                      ElevatedButton(
+
+                      // Logout Button
+                      ElevatedButton.icon(
                         onPressed: () => logOutBtn(context),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
+                        icon: const Icon(Icons.logout, color: Colors.white),
+                        label: const Text(
+                          "Log Out",
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: "Merriweather",
+                            color: Colors.white,
                           ),
                         ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: const [
-                            Icon(Icons.login, color: Colors.white, size: 20),
-                            SizedBox(width: 15),
-                            Text(
-                              "Log-Out",
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                fontFamily: "Merriweather",
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                          minimumSize: const Size(double.infinity, 50),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                       ),
                     ],
@@ -295,13 +276,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         buildTextField("DOB", _dobController),
         if (userRole == "Doctor") ...[
           buildTextField("Experience", experience),
-          const SizedBox(height: 10),
           buildTextField("About Yourself", docInfo),
-          const SizedBox(height: 10),
           buildTextField("Clinic Address", clinicLoc),
-          const SizedBox(height: 10),
           buildTextField("Specialization", specialization),
-          const SizedBox(height: 10),
         ],
       ],
     );
@@ -317,20 +294,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: TextFormField(
         controller: controller,
         obscureText: obscureText,
+        readOnly: true, // keep read-only since it's a profile view
         decoration: InputDecoration(
           labelText: label,
           filled: true,
           fillColor: Colors.white,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 15,
-            vertical: 15,
+            vertical: 14,
           ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: Colors.blue, width: 3),
-          ),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(12),
             borderSide: const BorderSide(color: Color(0xFFB97001), width: 2),
           ),
         ),
