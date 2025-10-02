@@ -3,14 +3,14 @@ import 'package:autisecure/landing_screens/landing_screen.dart';
 import 'package:autisecure/widgets/cards.dart';
 import 'package:flutter/material.dart';
 
-class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+class DocHomeScreen extends StatefulWidget {
+  const DocHomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  State<DocHomeScreen> createState() => _DocHomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _DocHomeScreenState extends State<DocHomeScreen> {
   bool showSurvey = false;
 
   @override

@@ -1,29 +1,27 @@
+// ignore: file_names
 import 'package:autisecure/globals.dart' as globals;
-import 'package:autisecure/mainScreens/home_page.dart';
-import 'package:autisecure/mainScreens/liveChat.dart';
-import 'package:autisecure/mainScreens/test_screen.dart';
-import 'package:autisecure/mainScreens/doctor_screen.dart';
+import 'package:autisecure/mainScreens/Admin/admin.dart';
+import 'package:autisecure/mainScreens/doctor/doc_live_chat.dart';
+import 'package:autisecure/mainScreens/doctor/doc_test_screen.dart';
+import 'package:autisecure/mainScreens/doctor/doctorDashBoard.dart';
+import 'package:autisecure/mainScreens/doctor/doctor_doc_screen.dart';
 import 'package:autisecure/mainScreens/profile.dart';
 import 'package:flutter/material.dart';
 
-class Landingscreen extends StatefulWidget {
-  const Landingscreen({super.key});
+class DoctorLndingScreen extends StatefulWidget {
+  const DoctorLndingScreen({super.key});
 
   @override
-  State<Landingscreen> createState() => _LandingscreenState();
+  State<DoctorLndingScreen> createState() => ADoctorLndingScreenState();
 }
 
-class _LandingscreenState extends State<Landingscreen> {
+class ADoctorLndingScreenState extends State<DoctorLndingScreen> {
   final List<Widget> pages = [
-    const HomeScreen(),
-    const TestScreen(),
-    const DoctorListScreen(),
-    const LiveChat(
-      conversationId: "66ef123abc",
-      currentUserId: "user123",
-      token: "YOUR_JWT_TOKEN_HERE",
-    ),
-    const ProfileScreen(),
+    DocHomeScreen(),
+    DocTestScreen(),
+    DocDocListScreen(),
+    DocLiveChat(),
+    ProfileScreen(),
   ];
 
   void onItemTapped(int index) {
@@ -72,12 +70,8 @@ class _LandingscreenState extends State<Landingscreen> {
           label: "Home",
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.chat, size: 30),
-          label: "Test",
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.local_hospital, size: 30),
-          label: "Doctor",
+          icon: Icon(Icons.app_registration_rounded, size: 30),
+          label: "Appointment Lists",
         ),
         BottomNavigationBarItem(
           icon: Icon(Icons.chat, size: 30),

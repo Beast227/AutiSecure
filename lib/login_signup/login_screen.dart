@@ -1,7 +1,7 @@
 // ignore: file_names
 import 'dart:convert';
-import 'package:autisecure/admin_landing_screen.dart';
-import 'package:autisecure/landing_screen.dart';
+import 'package:autisecure/landing_screens/admin_landing_screen.dart';
+import 'package:autisecure/landing_screens/landing_screen.dart';
 import 'package:autisecure/login_signup/signup_screen.dart';
 import 'package:autisecure/mainScreens/home_page.dart';
 import 'package:flutter/material.dart';
