@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -131,5 +132,45 @@ class ApiService {
     );
 
     return response.statusCode == 201;
+  }
+}
+
+Future<Map<String, dynamic>?> getSurveyResults() async {
+  final prefs = await SharedPreferences.getInstance();
+  final token = prefs.getString('token');
+  if (token == null) {
+    debugPrint("❌ No auth token found, cannot fetch survey results.");
+    return null;
+  }
+
+  // Assuming the GET route is the same as the POST route for surveys
+  final url = Uri.parse('https://autisense-backend.onrender.com/api/survey');
+
+  try {
+    final response = await http.get(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    debugPrint(token);
+
+    if (response.statusCode == 200) {
+      // Survey found, return the data
+      return jsonDecode(response.body);
+    } else if (response.statusCode == 400) {
+      // No survey found for this user, which is a valid scenario
+      debugPrint("ℹ️ No previous survey found on the server for this user.");
+      return null;
+    } else {
+      // Handle other errors
+      debugPrint("❌ Failed to fetch survey results: ${response.statusCode}");
+      return null;
+    }
+  } catch (e) {
+    debugPrint("❌ Error during getSurveyResults API call: $e");
+    return null;
   }
 }
