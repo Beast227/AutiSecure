@@ -1,5 +1,6 @@
 // ignore: file_names
 import 'dart:convert';
+import 'package:autisecure/landing_screens/Doctor_Landing_Screen.dart';
 import 'package:autisecure/landing_screens/admin_landing_screen.dart';
 import 'package:autisecure/landing_screens/landing_screen.dart';
 import 'package:autisecure/login_signup/signup_screen.dart';
@@ -35,10 +36,12 @@ class _LoginScreenState extends State<LoginScreen> {
         MaterialPageRoute(
           builder:
               (_) =>
-                  role == "Doctor" || role == "User"
+                  role == "User"
                       ? HomeScreen()
                       : role == "Admin"
                       ? AdminLandingScreen()
+                      : role == "Doctor"
+                      ? DoctorLndingScreen()
                       : LoginScreen(),
         ),
       );
@@ -89,6 +92,8 @@ class _LoginScreenState extends State<LoginScreen> {
               (context) =>
                   dropDownValue == "Admin"
                       ? AdminLandingScreen()
+                      : dropDownValue == "Doctor"
+                      ? DoctorLndingScreen()
                       : Landingscreen(),
         ),
       );

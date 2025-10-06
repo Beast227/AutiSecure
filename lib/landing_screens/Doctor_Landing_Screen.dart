@@ -1,10 +1,9 @@
 // ignore: file_names
 import 'package:autisecure/globals.dart' as globals;
-import 'package:autisecure/mainScreens/Admin/admin.dart';
-import 'package:autisecure/mainScreens/doctor/doc_live_chat.dart';
 import 'package:autisecure/mainScreens/doctor/doc_test_screen.dart';
 import 'package:autisecure/mainScreens/doctor/doctorDashBoard.dart';
 import 'package:autisecure/mainScreens/doctor/doctor_doc_screen.dart';
+import 'package:autisecure/mainScreens/doctor/live_chat/chat_list_screen.dart';
 import 'package:autisecure/mainScreens/profile.dart';
 import 'package:flutter/material.dart';
 
@@ -20,7 +19,7 @@ class ADoctorLndingScreenState extends State<DoctorLndingScreen> {
     DocHomeScreen(),
     DocTestScreen(),
     DocDocListScreen(),
-    DocLiveChat(),
+    ChatListScreen(),
     ProfileScreen(),
   ];
 
@@ -71,10 +70,14 @@ class ADoctorLndingScreenState extends State<DoctorLndingScreen> {
         ),
         BottomNavigationBarItem(
           icon: Icon(Icons.app_registration_rounded, size: 30),
-          label: "Appointment Lists",
+          label: "Test",
         ),
         BottomNavigationBarItem(
           icon: Icon(Icons.chat, size: 30),
+          label: "Doctors",
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.person, size: 30),
           label: "Chat",
         ),
         BottomNavigationBarItem(

@@ -1,7 +1,6 @@
 import 'dart:convert';
-
+import 'package:autisecure/models/appointment.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -110,10 +109,10 @@ Future<Map<String, dynamic>> getSurveyScore() async {
 }
 
 class ApiService {
-  static const String baseurl = "https://autisense-backend.onrender.com/api";
+  static const String baseUrl = "https://autisense-backend.onrender.com/api";
 
   static Future<List<Map<String, dynamic>>> fetchDoctors() async {
-    final response = await http.get(Uri.parse("$baseurl/doctor/all"));
+    final response = await http.get(Uri.parse("$baseUrl/doctor/all"));
 
     if (response.statusCode == 200) {
       final Map<String, dynamic> jsonBody = json.decode(response.body);
@@ -124,14 +123,91 @@ class ApiService {
     }
   }
 
-  static Future<bool> bookAppointment(Map<String, dynamic> appointment) async {
-    final response = await http.post(
-      Uri.parse("$baseurl/appointments"),
-      headers: {"content-Type": "application/json"},
-      body: json.encode(appointment),
-    );
+  static Future<String?> _getToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('token');
+  }
 
-    return response.statusCode == 201;
+  // 🔹 Get appointment requests for doctor
+  static Future<List<Appointment>> fetchAppointmentRequests() async {
+    debugPrint('📡 Starting fetchAppointmentRequests...');
+    final token = await _getToken();
+
+    if (token == null) {
+      debugPrint('❌ Token not found!');
+      throw Exception("Token not found");
+    }
+
+    final url = Uri.parse('$baseUrl/requests');
+    debugPrint('🌐 Sending GET request to: $url');
+
+    try {
+      final response = await http.get(
+        url,
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      debugPrint('📥 Response status: ${response.statusCode}');
+      debugPrint('📦 Raw response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+
+        if (decoded is List) {
+          debugPrint(
+            '✅ Successfully parsed appointment list (${decoded.length} items)',
+          );
+          return decoded.map((e) => Appointment.fromJson(e)).toList();
+        } else if (decoded is Map && decoded.containsKey('appointments')) {
+          debugPrint(
+            '✅ Found "appointments" key with ${decoded["appointments"].length} items',
+          );
+          return (decoded["appointments"] as List)
+              .map((e) => Appointment.fromJson(e))
+              .toList();
+        } else {
+          debugPrint('⚠️ Unexpected response format: $decoded');
+          return [];
+        }
+      } else {
+        debugPrint('❌ Failed to fetch appointments: ${response.statusCode}');
+        return [];
+      }
+    } catch (e, stack) {
+      debugPrint("🚨 Exception while loading appointments: $e");
+      debugPrint(stack.toString());
+      return [];
+    }
+  }
+
+  // 🔹 Approve appointment
+  static Future<void> approveAppointment(String id) async {
+    final token = await _getToken();
+    if (token == null) throw Exception("Token not found");
+
+    await http.post(
+      Uri.parse('$baseUrl/approve'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'appointmentId': id}),
+    );
+  }
+
+  // 🔹 Reject appointment
+  static Future<void> rejectAppointment(String id) async {
+    final token = await _getToken();
+    if (token == null) throw Exception("Token not found");
+
+    await http.post(
+      Uri.parse('$baseUrl/reject'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'appointmentId': id}),
+    );
   }
 }
 
