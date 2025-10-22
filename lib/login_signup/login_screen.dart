@@ -22,7 +22,10 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    _checkIfLoggedIn(context);
+    // This delays the check until after the first frame is built
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkIfLoggedIn(context);
+    });
   }
 
   Future<void> _checkIfLoggedIn(context) async {
@@ -31,19 +34,18 @@ class _LoginScreenState extends State<LoginScreen> {
     final role = prefs.getString('role');
 
     if (token != null && token.isNotEmpty) {
-      Navigator.pushReplacement(
+      // Check if the widget is still mounted before navigating
+      if (!mounted) return;
+      Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
-          builder:
-              (_) =>
-                  role == "User"
-                      ? HomeScreen()
-                      : role == "Admin"
-                      ? AdminLandingScreen()
-                      : role == "Doctor"
-                      ? DoctorLndingScreen()
-                      : LoginScreen(),
+          builder: (context) => dropDownValue == "Admin"
+            ? AdminLandingScreen()
+              : dropDownValue == "Doctor"
+                ? DoctorLndingScreen()
+                  : Landingscreen(),
         ),
+        (Route<dynamic> route) => false, // This line removes all previous routes
       );
     }
   }
@@ -51,56 +53,97 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
-  Future<void> submitLogin(context) async {
+  Future<void> submitLogin(BuildContext context) async {
+    // --- Regex Validation ---
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+
+    // Email Regex: Standard email validation
+    final emailRegex = RegExp(
+        r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+");
+
+    // Password Regex: Minimum 8 characters, at least one letter and one number
+    final passwordRegex = RegExp(r'^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$');
+
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Email and password cannot be empty")));
+      return;
+    }
+
+    if (!emailRegex.hasMatch(email)) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text("Invalid email format")));
+      return;
+    }
+
+    if (!passwordRegex.hasMatch(password)) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+              "Password must be 8+ characters with at least one letter and one number")));
+      return;
+    }
+    // --- End of Validation ---
+
     final url = Uri.parse(
       dropDownValue == "Doctor"
           ? "https://autisense-backend.onrender.com/api/doctor/login"
           : dropDownValue == "Admin"
-          ? "https://autisense-backend.onrender.com/api/admin/login"
-          : "https://autisense-backend.onrender.com/api/user/login",
+              ? "https://autisense-backend.onrender.com/api/admin/login"
+              : "https://autisense-backend.onrender.com/api/user/login",
     );
 
     final Map<String, dynamic> data = {
-      "email": _emailController.text.trim(),
-      "password": _passwordController.text.trim(),
+      "email": email,
+      "password": password,
     };
 
-    final response = await http.post(
-      url,
-      headers: {'Content-Type': 'application/json'},
-      body: json.encode(data),
-    );
-
-    if (response.statusCode == 200) {
-      final responseData = json.decode(response.body);
-      final message = responseData['message'];
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('token', responseData['token']);
-      await prefs.setString('role', dropDownValue);
-
-      _emailController.clear();
-      _passwordController.clear();
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder:
-              (context) =>
-                  dropDownValue == "Admin"
-                      ? AdminLandingScreen()
-                      : dropDownValue == "Doctor"
-                      ? DoctorLndingScreen()
-                      : Landingscreen(),
-        ),
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode(data),
       );
-    } else {
+
+      // Check if the widget is still mounted before using context
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        final message = responseData['message'];
+
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('token', responseData['token']);
+        await prefs.setString('role', dropDownValue);
+
+        _emailController.clear();
+        _passwordController.clear();
+
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => dropDownValue == "Admin"
+                ? AdminLandingScreen()
+                : dropDownValue == "Doctor"
+                    ? DoctorLndingScreen()
+                    : Landingscreen(),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(
+            SnackBar(content: Text("Login Failed: ${response.body}")));
+      }
+    } catch (e) {
+      // Handle network errors (e.g., no internet)
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text("Login Failed: ${response.body}")));
+      ).showSnackBar(SnackBar(content: Text("Network error: ${e.toString()}")));
     }
   }
 
@@ -195,19 +238,18 @@ class _LoginScreenState extends State<LoginScreen> {
                             Icons.arrow_drop_down,
                             color: Colors.grey[600],
                           ),
-                          items:
-                              users.map((String i) {
-                                return DropdownMenuItem(
-                                  value: i,
-                                  child: Text(
-                                    i,
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                );
-                              }).toList(),
+                          items: users.map((String i) {
+                            return DropdownMenuItem(
+                              value: i,
+                              child: Text(
+                                i,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            );
+                          }).toList(),
                           onChanged: (String? newValue) {
                             setState(() {
                               dropDownValue = newValue!;

@@ -42,7 +42,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
   @override
   void initState() {
     super.initState();
-    _checkIfLoggedIn();
+    // This delays the check until after the first frame is built
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkIfLoggedIn();
+    });
   }
 
   @override
@@ -61,6 +64,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
     super.dispose();
   }
 
+  // Helper function to safely show a SnackBar
+  void _showSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
   Future<void> _checkIfLoggedIn() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
@@ -76,20 +87,80 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 
   Future<void> submitRegistration(context) async {
-    if (passwordController.text.trim() !=
-        confirmPasswordController.text.trim()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Passwords do not match!")),
-      );
-      return; 
+    // --- START VALIDATION ---
+    final name = nameController.text.trim();
+    final email = emailController.text.trim();
+    final phone = phController.text.trim();
+    final address = addressController.text.trim();
+    final dob = dobController.text.trim();
+    final password = passwordController.text.trim();
+    final confirmPassword = confirmPasswordController.text.trim();
+
+    // 1. Check for empty common fields
+    if (name.isEmpty ||
+        email.isEmpty ||
+        phone.isEmpty ||
+        address.isEmpty ||
+        dob.isEmpty ||
+        password.isEmpty) {
+      _showSnackBar("Please fill all required fields.");
+      return;
     }
 
-    String? imageUrl;
+    // 2. Check for password match
+    if (password != confirmPassword) {
+      _showSnackBar("Passwords do not match!");
+      return;
+    }
 
+    // 3. Define Regex Patterns
+    // Name: Allows letters, spaces, and hyphens
+    final nameRegex = RegExp(r'^[a-zA-Z\s\-]+$');
+    // Email: Standard email format
+    final emailRegex = RegExp(
+        r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+");
+    // Phone: Simple 10-digit number
+    final phoneRegex = RegExp(r'^\d{10}$');
+    // Password: 8+ characters, at least 1 letter and 1 number
+    final passwordRegex = RegExp(r'^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$');
+
+    // 4. Apply Regex
+    if (!nameRegex.hasMatch(name)) {
+      _showSnackBar(
+          "Please enter a valid name (letters, spaces, hyphens only).");
+      return;
+    }
+    if (!emailRegex.hasMatch(email)) {
+      _showSnackBar("Invalid email format.");
+      return;
+    }
+    if (!phoneRegex.hasMatch(phone)) {
+      _showSnackBar("Please enter a 10-digit phone number.");
+      return;
+    }
+    if (!passwordRegex.hasMatch(password)) {
+      _showSnackBar(
+          "Password must be 8+ characters with at least one letter and one number.");
+      return;
+    }
+
+    // 5. Check doctor-specific fields (if applicable)
+    if (dropDownValue == "Doctor") {
+      if (specialization.text.trim().isEmpty ||
+          experience.text.trim().isEmpty ||
+          docInfo.text.trim().isEmpty ||
+          clinicLoc.text.trim().isEmpty) {
+        _showSnackBar("Please fill all doctor-specific fields.");
+        return;
+      }
+    }
+    // --- END VALIDATION ---
+
+    String? imageUrl;
     if (doctorImage != null) {
       imageUrl = await uploadDoctorimage(doctorImage!);
     }
-    
+
     final url = Uri.parse(
       dropDownValue == "Doctor"
           ? 'https://autisense-backend.onrender.com/api/doctor/register'
@@ -97,61 +168,59 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
 
     final Map<String, dynamic> data = {
-      "name": nameController.text.trim(),
-      "email": emailController.text.trim(),
-      "phone": phController.text.trim(),
-      "address": addressController.text.trim(),
-      "dob": dobController.text.trim(),
-      "password": passwordController.text.trim(),
-      "imageUrl": imageUrl, 
+      "name": name,
+      "email": email,
+      "phone": phone,
+      "address": address,
+      "dob": dob,
+      "password": password,
+      "imageUrl": imageUrl,
     };
     if (dropDownValue == "Doctor") {
       data.addAll({
         "speciality": specialization.text.trim(),
-        // 3. SEND THE EXPERIENCE AS A NUMBER (int)
-        "experience": int.tryParse(experience.text.trim()) ?? 0, 
+        "experience": int.tryParse(experience.text.trim()) ?? 0,
         "description": docInfo.text.trim(),
         "clinicAddress": clinicLoc.text.trim(),
       });
     }
 
-    final response = await http.post(
-      url,
-      headers: {'Content-Type': 'application/json'},
-      body: json.encode(data),
-    );
-
-    if (!mounted) return;
-
-    if (response.statusCode == 200) {
-      nameController.clear();
-      emailController.clear();
-      phController.clear();
-      addressController.clear();
-      dobController.clear();
-      passwordController.clear();
-      confirmPasswordController.clear();
-      specialization.clear();
-      experience.clear();
-      docInfo.clear();
-      clinicLoc.clear();
-
-      debugPrint("the message is ${response.body}");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Registration successful: ${response.body}")),
+    // Add try-catch for network errors
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode(data),
       );
-      
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Couldn't Register: ${response.body}")),
-      );
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        nameController.clear();
+        emailController.clear();
+        phController.clear();
+        addressController.clear();
+        dobController.clear();
+        passwordController.clear();
+        confirmPasswordController.clear();
+        specialization.clear();
+        experience.clear();
+        docInfo.clear();
+        clinicLoc.clear();
+
+        _showSnackBar("Registration successful: ${response.body}");
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+        );
+      } else {
+        _showSnackBar("Couldn't Register: ${response.body}");
+      }
+    } catch (e) {
+      _showSnackBar("A network error occurred: ${e.toString()}");
     }
   }
-
 
   Future<void> pickDoctorImage() async {
     final pickedFile = await ImagePicker().pickImage(
@@ -184,36 +253,42 @@ class _SignUpScreenState extends State<SignUpScreen> {
         await http.MultipartFile.fromPath("file", imageFile.path),
       );
 
-    final response = await request.send();
+    try {
+      final response = await request.send();
 
-    if (response.statusCode == 200) {
-      final res = await http.Response.fromStream(response);
-      final data = jsonDecode(res.body);
-      debugPrint("Upload Success");
-      return data["secure_url"];
-    } else {
-      debugPrint("Upload failed : ${response.statusCode}");
+      if (response.statusCode == 200) {
+        final res = await http.Response.fromStream(response);
+        final data = jsonDecode(res.body);
+        debugPrint("Upload Success");
+        return data["secure_url"];
+      } else {
+        debugPrint("Upload failed : ${response.statusCode}");
+        final res = await http.Response.fromStream(response);
+        debugPrint("Error: ${res.body}");
+        return null;
+      }
+    } catch (e) {
+      debugPrint("Error uploading image: ${e.toString()}");
       return null;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // 2. UPDATE buildTextField TO ACCEPT MORE OPTIONS
     Widget buildTextField(
       String label,
       TextEditingController controller,
       bool obscureText, {
-      TextInputType keyboardType = TextInputType.text, // Add this
-      List<TextInputFormatter>? inputFormatters, // Add this
+      TextInputType keyboardType = TextInputType.text,
+      List<TextInputFormatter>? inputFormatters,
     }) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 10),
         child: TextFormField(
           controller: controller,
           obscureText: obscureText,
-          keyboardType: keyboardType, // Use the new parameter
-          inputFormatters: inputFormatters, // Use the new parameter
+          keyboardType: keyboardType,
+          inputFormatters: inputFormatters,
           decoration: InputDecoration(
             labelText: label,
             fillColor: Colors.white,
@@ -328,9 +403,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           const SizedBox(height: 20),
                           buildTextField("Name", nameController, false),
                           const SizedBox(height: 10),
-                          buildTextField("Email", emailController, false),
+                          buildTextField("Email", emailController, false,
+                              keyboardType: TextInputType.emailAddress),
                           const SizedBox(height: 10),
-                          buildTextField("Phone Number", phController, false),
+                          buildTextField(
+                            "Phone Number",
+                            phController,
+                            false,
+                            keyboardType: TextInputType.phone,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                              LengthLimitingTextInputFormatter(10), // Limit to 10 digits
+                            ],
+                          ),
                           const SizedBox(height: 10),
                           buildTextField("Address", addressController, false),
                           const SizedBox(height: 20),
@@ -381,7 +466,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               false,
                             ),
                             const SizedBox(height: 10),
-                            // 3. USE THE NEW PARAMETERS FOR THE "Experience" FIELD
                             buildTextField(
                               "Experience (in years)",
                               experience,
@@ -398,27 +482,20 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           ],
                         ),
                       ),
-                      
-                      const SizedBox(height: 20),
-                      doctorImage != null
-                          ? Image.file(doctorImage!, height: 120)
-                          : const Text("No image selected (Optional)"),
-                      TextButton(
-                        onPressed: pickDoctorImage,
-                        child: const Text("Pick Profile Image"),
-                      ),
                     ],
-                    
-                    if (dropDownValue == "User") ...[
-                       const SizedBox(height: 20),
-                       doctorImage != null
-                          ? Image.file(doctorImage!, height: 120)
-                          : const Text("No image selected (Optional)"),
-                       TextButton(
-                        onPressed: pickDoctorImage,
-                        child: const Text("Pick Profile Image"),
-                      ),
-                    ],
+
+                    // --- THIS IS THE CORRECTED IMAGE PICKER ---
+                    // It is now outside the "if" statements, so it
+                    // will show for both User and Doctor.
+                    const SizedBox(height: 20),
+                    doctorImage != null
+                        ? Image.file(doctorImage!, height: 120)
+                        : const Text("No image selected (Optional)"),
+                    TextButton(
+                      onPressed: pickDoctorImage,
+                      child: const Text("Pick Profile Image"),
+                    ),
+                    // --- END OF CORRECTION ---
 
                     const SizedBox(height: 20),
                     ElevatedButton(
