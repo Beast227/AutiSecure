@@ -111,15 +111,58 @@ Future<Map<String, dynamic>> getSurveyScore() async {
 class ApiService {
   static const String baseUrl = "https://autisense-backend.onrender.com/api";
 
-  static Future<List<Map<String, dynamic>>> fetchDoctors() async {
-    final response = await http.get(Uri.parse("$baseUrl/doctor/all"));
+  static Future<Map<String, dynamic>> fetchDoctors({
+    required int page,
+    required int limit,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token'); // Fetch the token
+    // Ensure you have a token
+    if (token == null || token.isEmpty) {
+      throw Exception('Authentication token not found.');
+    }
 
-    if (response.statusCode == 200) {
-      final Map<String, dynamic> jsonBody = json.decode(response.body);
-      final List<dynamic> data = jsonBody['doctors'];
-      return data.cast<Map<String, dynamic>>();
-    } else {
-      throw Exception("Failed to load Doctors");
+    // Construct the URL with pagination query parameters
+    // Adjust '/doctors/all' if your paginated endpoint is different
+    final url = Uri.parse('$baseUrl/doctor/all?page=$page&limit=$limit');
+
+    try {
+      final response = await http.get(
+        url,
+        // Add the Authorization header
+        headers: {'authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+
+        // --- Adjust based on YOUR backend response structure ---
+        // Assuming your backend returns something like:
+        // {
+        //   "doctors": [ {...}, {...} ],
+        //   "currentPage": 1,
+        //   "totalPages": 3
+        // }
+        final List<dynamic> doctorsData = data['doctors'] ?? [];
+        final int currentPage = data['currentPage'] ?? page;
+        final int totalPages = data['totalPages'] ?? 1; // Default to 1 if not provided
+        // Determine if there are more pages based on the response
+        final bool hasMoreData = currentPage < totalPages;
+        // --- End of backend assumption ---
+
+        // Return the required Map structure
+        return {
+          'doctors': doctorsData.cast<Map<String, dynamic>>(),
+          'hasMore': hasMoreData,
+        };
+      } else {
+        // Provide more specific error information
+        throw Exception(
+            'Failed to load doctors (Status ${response.statusCode}): ${response.body}');
+      }
+    } catch (e) {
+      // Catch network or decoding errors
+      throw Exception('Failed to fetch doctors: $e');
     }
   }
 
