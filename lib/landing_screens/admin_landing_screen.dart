@@ -1,4 +1,6 @@
-import 'package:autisecure/globals.dart' as globals;
+// Remove the globals import
+// import 'package:autisecure/globals.dart' as globals; 
+
 import 'package:autisecure/mainScreens/Admin/admin.dart';
 import 'package:autisecure/mainScreens/user/profile.dart';
 import 'package:flutter/material.dart';
@@ -7,19 +9,27 @@ class AdminLandingScreen extends StatefulWidget {
   const AdminLandingScreen({super.key});
 
   @override
-  State<AdminLandingScreen> createState() => AadminLandingScreenState();
+  State<AdminLandingScreen> createState() => _AdminLandingScreenState();
 }
 
-class AadminLandingScreenState extends State<AdminLandingScreen> {
-  final List<Widget> pages = [AdminDashboard(), ProfileScreen()];
+class _AdminLandingScreenState extends State<AdminLandingScreen> {
+  // 1. Manage the index here. It safely starts at 0 every time.
+  int _selectedIndex = 0;
 
+  final List<Widget> pages = [
+    AdminDashboard(),
+    ProfileScreen(),
+  ];
+
+  // 2. Update the local state variable
   void onItemTapped(int index) {
     setState(() {
-      globals.selectedIndex = index;
+      _selectedIndex = index;
     });
   }
 
   Widget buildHeader() {
+    // ... (this function is fine, no changes)
     return Row(
       children: [
         Container(
@@ -50,7 +60,8 @@ class AadminLandingScreenState extends State<AdminLandingScreen> {
     return BottomNavigationBar(
       selectedItemColor: Colors.orange,
       unselectedItemColor: Colors.black,
-      currentIndex: globals.selectedIndex,
+      // 3. Use the local _selectedIndex
+      currentIndex: _selectedIndex,
       onTap: onItemTapped,
       type: BottomNavigationBarType.fixed,
       items: const [
@@ -75,7 +86,8 @@ class AadminLandingScreenState extends State<AdminLandingScreen> {
         backgroundColor: Colors.orange,
         title: buildHeader(),
       ),
-      body: pages[globals.selectedIndex],
+      // 4. Use the local _selectedIndex
+      body: pages[_selectedIndex],
       bottomNavigationBar: buildBottomNavBar(),
     );
   }

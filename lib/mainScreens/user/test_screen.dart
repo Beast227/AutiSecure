@@ -52,6 +52,32 @@ class _TestScreenState extends State<TestScreen> {
     super.dispose();
   }
 
+  // --- NEW HELPER FUNCTION ---
+  // Returns the user-friendly text for a given score
+  String _getScoreInterpretation(int score) {
+    if (score <= 25) {
+      return "Within the typical (non-autistic) range";
+    } else if (score >= 26 && score <= 31) {
+      return "Borderline / Intermediate";
+    } else {
+      // score >= 32
+      return "Indicates clinically significant autistic traits (high likelihood)";
+    }
+  }
+
+  // --- NEW HELPER FUNCTION ---
+  // Returns the correct color for each score range
+  Color _getScoreColor(int score) {
+    if (score <= 25) {
+      return Colors.green; // Typical
+    } else if (score >= 26 && score <= 31) {
+      return Colors.orange; // Borderline
+    } else {
+      // score >= 32
+      return Colors.red; // High Likelihood
+    }
+  }
+
   Future<String?> uploadVideoToCloudinary(File videoFile) async {
     final cloudName = dotenv.env['CLOUDINARY_CLOUD_NAME'];
     final uploadPreset = dotenv.env['CLOUDINARY_UPLOAD_PRESET'];
@@ -60,12 +86,11 @@ class _TestScreenState extends State<TestScreen> {
       "https://api.cloudinary.com/v1_1/$cloudName/video/upload",
     );
 
-    final request =
-        http.MultipartRequest("POST", url)
-          ..fields["upload_preset"] = uploadPreset!
-          ..files.add(
-            await http.MultipartFile.fromPath("file", videoFile.path),
-          );
+    final request = http.MultipartRequest("POST", url)
+      ..fields["upload_preset"] = uploadPreset!
+      ..files.add(
+        await http.MultipartFile.fromPath("file", videoFile.path),
+      );
 
     final response = await request.send();
 
@@ -82,6 +107,7 @@ class _TestScreenState extends State<TestScreen> {
 
   Future<void> analyzeVideo() async {
     if (selectedVideo == null) return;
+    if (!mounted) return;
 
     final videoUrl = await uploadVideoToCloudinary(selectedVideo!);
 
@@ -107,6 +133,7 @@ class _TestScreenState extends State<TestScreen> {
       final loadedQuestions =
           data.map((q) => QuestionModel.fromJson(q)).toList();
 
+      if (!mounted) return;
       final surveyState = context.read<SurveyState>();
       surveyState.initialize(loadedQuestions.length);
 
@@ -157,10 +184,9 @@ class _TestScreenState extends State<TestScreen> {
           }
 
           await prefs.setInt('aqScore', serverScore);
-          final answersToSave =
-              surveyState.selectedAnswers
-                  .map((e) => e?.toString() ?? "")
-                  .toList();
+          final answersToSave = surveyState.selectedAnswers
+              .map((e) => e?.toString() ?? "")
+              .toList();
           await prefs.setStringList('selectedAnswers', answersToSave);
           debugPrint(
             "📝 Server data saved to SharedPreferences for future offline access.",
@@ -187,10 +213,9 @@ class _TestScreenState extends State<TestScreen> {
   Future<void> submitAnswers(BuildContext context) async {
     final surveyState = context.read<SurveyState>();
 
-    List<String> responses =
-        surveyState.selectedAnswers
-            .map((index) => index != null ? fixedOptions[index] : "")
-            .toList();
+    List<String> responses = surveyState.selectedAnswers
+        .map((index) => index != null ? fixedOptions[index] : "")
+        .toList();
 
     Map<String, dynamic> payload = {"surveyResponse": responses};
     debugPrint("Survey Payload: ${jsonEncode(payload)}");
@@ -283,24 +308,32 @@ class _TestScreenState extends State<TestScreen> {
                                 style: TextStyle(
                                   fontSize: 40,
                                   fontWeight: FontWeight.bold,
-                                  color:
-                                      aqScore > 30
-                                          ? Colors.green
-                                          : aqScore > 15
-                                          ? Colors.orange
-                                          : Colors.red,
+                                  // --- UPDATED COLOR ---
+                                  color: _getScoreColor(aqScore),
                                 ),
                               ),
-                              progressColor:
-                                  aqScore > 30
-                                      ? Colors.green
-                                      : aqScore > 15
-                                      ? Colors.orange
-                                      : Colors.red,
+                              // --- UPDATED COLOR ---
+                              progressColor: _getScoreColor(aqScore),
                               backgroundColor: Colors.grey.shade200,
                               animation: true,
                               animationDuration: 1500,
                             ),
+                            const SizedBox(height: 20),
+                            // --- ADDED SCORE INTERPRETATION ---
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 16.0),
+                              child: Text(
+                                _getScoreInterpretation(aqScore),
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w500,
+                                  color: _getScoreColor(aqScore),
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                            // --- END OF ADDED WIDGET ---
                             const SizedBox(height: 15),
                             ElevatedButton.icon(
                               icon: const Icon(Icons.refresh),
@@ -341,14 +374,13 @@ class _TestScreenState extends State<TestScreen> {
                 const SizedBox(height: 20),
                 AnimatedSwitcher(
                   duration: const Duration(milliseconds: 400),
-                  transitionBuilder:
-                      (child, animation) => SlideTransition(
-                        position: Tween<Offset>(
-                          begin: const Offset(1, 0),
-                          end: Offset.zero,
-                        ).animate(animation),
-                        child: FadeTransition(opacity: animation, child: child),
-                      ),
+                  transitionBuilder: (child, animation) => SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(1, 0),
+                      end: Offset.zero,
+                    ).animate(animation),
+                    child: FadeTransition(opacity: animation, child: child),
+                  ),
                   child: QuestionCard(
                     key: ValueKey(surveyState.currentIndex),
                     question: questions[surveyState.currentIndex],
@@ -356,7 +388,8 @@ class _TestScreenState extends State<TestScreen> {
                     selectedAnswer:
                         surveyState.selectedAnswers[surveyState.currentIndex],
                     onOptionSelected: (value) {
-                      surveyState.updateAnswer(surveyState.currentIndex, value);
+                      surveyState.updateAnswer(
+                          surveyState.currentIndex, value);
                     },
                   ),
                 ),
