@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../services/api_service.dart';
-import '../widgets/doctor_card.dart'; // We'll create this widget below
+import '../../services/api_service.dart';
+import '../../widgets/doctor_card.dart'; // We'll create this widget below
 
 class DoctorListScreen extends StatefulWidget {
   const DoctorListScreen({super.key});

@@ -1,10 +1,11 @@
 import 'package:autisecure/globals.dart' as globals;
-import 'package:autisecure/mainScreens/doc_live_list..dart';
-import 'package:autisecure/mainScreens/home_page.dart';
+import 'package:autisecure/mainScreens/user/home_page.dart';
+// import 'package:autisecure/mainScreens/user/live_chat.dart';
+import 'package:autisecure/live_chat2.dart';
 // import 'package:autisecure/mainScreens/liveChat.dart';
-import 'package:autisecure/mainScreens/test_screen.dart';
-import 'package:autisecure/mainScreens/doctor_screen.dart';
-import 'package:autisecure/mainScreens/profile.dart';
+import 'package:autisecure/mainScreens/user/test_screen.dart';
+import 'package:autisecure/mainScreens/user/doctor_screen.dart';
+import 'package:autisecure/mainScreens/user/profile.dart';
 import 'package:flutter/material.dart';
 
 class Landingscreen extends StatefulWidget {
@@ -19,7 +20,7 @@ class _LandingscreenState extends State<Landingscreen> {
     const HomeScreen(),
     const TestScreen(),
     const DoctorListScreen(),
-    const LiveList(),
+    const LiveChat2(),
     const ProfileScreen(),
   ];
 

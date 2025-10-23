@@ -128,85 +128,78 @@ class ApiService {
     return prefs.getString('token');
   }
 
-  // 🔹 Get appointment requests for doctor
   static Future<List<Appointment>> fetchAppointmentRequests() async {
-    debugPrint('📡 Starting fetchAppointmentRequests...');
     final token = await _getToken();
-
-    if (token == null) {
-      debugPrint('❌ Token not found!');
-      throw Exception("Token not found");
-    }
-
-    final url = Uri.parse('$baseUrl/requests');
-    debugPrint('🌐 Sending GET request to: $url');
+    if (token == null) throw Exception("Token not found");
 
     try {
+      debugPrint("📡 Starting fetchAppointmentRequests...");
       final response = await http.get(
-        url,
+        Uri.parse('$baseUrl/appointments/requests'),
         headers: {'Authorization': 'Bearer $token'},
       );
-
-      debugPrint('📥 Response status: ${response.statusCode}');
-      debugPrint('📦 Raw response body: ${response.body}');
+      debugPrint("🌐 GET request sent to: $baseUrl/requests");
+      debugPrint("📥 Response status: ${response.statusCode}");
+      debugPrint("📦 Raw response body: ${response.body}");
 
       if (response.statusCode == 200) {
-        final decoded = jsonDecode(response.body);
+        final Map<String, dynamic> jsonData = jsonDecode(response.body);
 
-        if (decoded is List) {
-          debugPrint(
-            '✅ Successfully parsed appointment list (${decoded.length} items)',
-          );
-          return decoded.map((e) => Appointment.fromJson(e)).toList();
-        } else if (decoded is Map && decoded.containsKey('appointments')) {
-          debugPrint(
-            '✅ Found "appointments" key with ${decoded["appointments"].length} items',
-          );
-          return (decoded["appointments"] as List)
-              .map((e) => Appointment.fromJson(e))
-              .toList();
+        if (jsonData.containsKey('appointmentRequests')) {
+          final List appointmentsData = jsonData['appointmentRequests'];
+          debugPrint("✅ Parsed ${appointmentsData.length} appointment(s)");
+
+          return appointmentsData.map((e) => Appointment.fromJson(e)).toList();
         } else {
-          debugPrint('⚠️ Unexpected response format: $decoded');
+          debugPrint("⚠️ Unexpected response format: $jsonData");
           return [];
         }
       } else {
-        debugPrint('❌ Failed to fetch appointments: ${response.statusCode}');
-        return [];
+        throw Exception('Failed to fetch appointments: ${response.statusCode}');
       }
-    } catch (e, stack) {
-      debugPrint("🚨 Exception while loading appointments: $e");
-      debugPrint(stack.toString());
+    } catch (e) {
+      debugPrint("❌ Failed to fetch appointments: $e");
       return [];
     }
   }
 
-  // 🔹 Approve appointment
-  static Future<void> approveAppointment(String id) async {
+  static Future<void> approveAppointmentWithDetails({
+    required String appointmentId,
+    required DateTime date,
+    required TimeOfDay startTime,
+    required TimeOfDay endTime,
+  }) async {
     final token = await _getToken();
-    if (token == null) throw Exception("Token not found");
-
-    await http.post(
-      Uri.parse('$baseUrl/approve'),
+    final response = await http.post(
+      Uri.parse('$baseUrl/appointments/approve'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
       },
-      body: jsonEncode({'appointmentId': id}),
+      body: jsonEncode({
+        'requestId': appointmentId,
+        'date': date.toIso8601String(),
+        'startTime': "${startTime.hour}:${startTime.minute}",
+        'endTime': "${endTime.hour}:${endTime.minute}",
+      }),
+    );
+    debugPrint(
+      "✅ Approved appointment $appointmentId with date/time, status: ${response.statusCode}",
     );
   }
 
-  // 🔹 Reject appointment
-  static Future<void> rejectAppointment(String id) async {
+  static Future<void> rejectAppointment(String appointmentId) async {
     final token = await _getToken();
-    if (token == null) throw Exception("Token not found");
-
-    await http.post(
-      Uri.parse('$baseUrl/reject'),
+    final response = await http.post(
+      Uri.parse('$baseUrl/appointments/reject'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
       },
-      body: jsonEncode({'appointmentId': id}),
+      body: jsonEncode({'appointmentId': appointmentId}),
+    );
+    debugPrint(
+      "✅ Rejected appointment $appointmentId, status: ${response.statusCode}",
     );
   }
 }

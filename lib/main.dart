@@ -1,9 +1,9 @@
 import 'package:animated_splash_screen/animated_splash_screen.dart';
-import 'package:autisecure/landing_screens/Doctor_Landing_Screen.dart';
+import 'package:autisecure/landing_screens/doctor_landing_screen.dart';
 import 'package:autisecure/landing_screens/admin_landing_screen.dart';
 import 'package:autisecure/landing_screens/landing_screen.dart';
 import 'package:autisecure/login_signup/login_screen.dart';
-import 'package:autisecure/mainScreens/home_page.dart';
+import 'package:autisecure/mainScreens/user/home_page.dart';
 import 'package:autisecure/state_models/survey_state.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';

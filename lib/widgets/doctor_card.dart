@@ -1,4 +1,4 @@
-import 'package:autisecure/mainScreens/subScreen/appointmentPage.dart';
+import 'package:autisecure/mainScreens/user/subScreen/appointment_page.dart';
 import 'package:flutter/material.dart';
 
 class DoctorCard extends StatelessWidget {

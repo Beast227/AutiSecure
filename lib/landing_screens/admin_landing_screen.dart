@@ -1,6 +1,6 @@
 import 'package:autisecure/globals.dart' as globals;
 import 'package:autisecure/mainScreens/Admin/admin.dart';
-import 'package:autisecure/mainScreens/profile.dart';
+import 'package:autisecure/mainScreens/user/profile.dart';
 import 'package:flutter/material.dart';
 
 class AdminLandingScreen extends StatefulWidget {

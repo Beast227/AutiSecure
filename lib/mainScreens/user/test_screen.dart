@@ -11,11 +11,11 @@ import 'package:image_picker/image_picker.dart';
 import 'package:percent_indicator/circular_percent_indicator.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:video_player/video_player.dart';
-import '../models/question_model.dart';
-import '../widgets/progress_header.dart';
-import '../widgets/question_card.dart';
-import '../widgets/navigation_buttons.dart';
-import '../state_models/survey_state.dart';
+import '../../models/question_model.dart';
+import '../../widgets/progress_header.dart';
+import '../../widgets/question_card.dart';
+import '../../widgets/navigation_buttons.dart';
+import '../../state_models/survey_state.dart';
 
 class TestScreen extends StatefulWidget {
   const TestScreen({super.key});

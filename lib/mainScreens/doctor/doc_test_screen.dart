@@ -1,11 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:autisecure/models/question_model.dart';
 import 'package:autisecure/services/api_service.dart' as api_service;
-import 'package:autisecure/state_models/survey_state.dart';
-import 'package:autisecure/widgets/navigation_buttons.dart';
-import 'package:autisecure/widgets/progress_header.dart';
-import 'package:autisecure/widgets/question_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -16,6 +11,11 @@ import 'package:image_picker/image_picker.dart';
 import 'package:percent_indicator/circular_percent_indicator.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:video_player/video_player.dart';
+import '../../models/question_model.dart';
+import '../../widgets/progress_header.dart';
+import '../../widgets/question_card.dart';
+import '../../widgets/navigation_buttons.dart';
+import '../../state_models/survey_state.dart';
 
 class DocTestScreen extends StatefulWidget {
   const DocTestScreen({super.key});
@@ -99,6 +99,7 @@ class _DocTestScreenState extends State<DocTestScreen> {
 
   Future<void> loadData() async {
     try {
+      // Load the question structure (unchanged)
       final String response = await rootBundle.loadString(
         'assets/questions.json',
       );
@@ -109,28 +110,73 @@ class _DocTestScreenState extends State<DocTestScreen> {
       final surveyState = context.read<SurveyState>();
       surveyState.initialize(loadedQuestions.length);
 
+      // Step 1: Check SharedPreferences first (unchanged)
       final prefs = await SharedPreferences.getInstance();
-      final savedAnswers = prefs.getStringList('selectedAnswers');
       final savedScore = prefs.getInt('aqScore');
+      final savedAnswers = prefs.getStringList('selectedAnswers');
 
-      if (savedAnswers != null) {
+      if (savedScore != null && savedScore > 0 && savedAnswers != null) {
+        debugPrint(
+          "✅ Found saved survey in SharedPreferences. Loading locally.",
+        );
+
+        aqScore = savedScore;
         for (int i = 0; i < savedAnswers.length; i++) {
-          if (savedAnswers[i] != "") {
+          if (savedAnswers[i].isNotEmpty) {
             surveyState.updateAnswer(i, int.parse(savedAnswers[i]));
           }
         }
+      } else {
+        // Step 2: If no local data, call the API (unchanged)
+        debugPrint("ℹ️ No local data found. Fetching from server...");
+        final serverResults = await api_service.getSurveyResults();
+
+        // --- THIS IS THE FIX ---
+        // Check for the nested 'survey' object instead of 'responses' directly.
+        if (serverResults != null && serverResults['survey'] != null) {
+          debugPrint(
+            "✅ Found previous survey on server. Populating and saving locally.",
+          );
+
+          // Extract the nested 'survey' object first.
+          final Map<String, dynamic> surveyData = serverResults['survey'];
+
+          // Now, access 'responses' and 'score' from the nested surveyData object.
+          final List<dynamic> serverResponses = surveyData['responses'];
+          final int serverScore = surveyData['score'];
+
+          // The rest of the logic remains the same
+          aqScore = serverScore;
+          for (int i = 0; i < serverResponses.length; i++) {
+            if (serverResponses[i].toString().isNotEmpty) {
+              final answerIndex = fixedOptions.indexOf(serverResponses[i]);
+              if (answerIndex != -1) {
+                surveyState.updateAnswer(i, answerIndex);
+              }
+            }
+          }
+
+          await prefs.setInt('aqScore', serverScore);
+          final answersToSave =
+              surveyState.selectedAnswers
+                  .map((e) => e?.toString() ?? "")
+                  .toList();
+          await prefs.setStringList('selectedAnswers', answersToSave);
+          debugPrint(
+            "📝 Server data saved to SharedPreferences for future offline access.",
+          );
+        } else {
+          debugPrint("ℹ️ No survey data on server. Starting a fresh survey.");
+        }
       }
 
-      if (savedScore != null) {
-        aqScore = savedScore;
-      }
-
+      // Update the UI (unchanged)
       setState(() {
         questions = loadedQuestions;
         loading = false;
       });
     } catch (e) {
-      debugPrint("❌ Failed to load questions: $e");
+      debugPrint("❌ Failed to load data: $e");
       setState(() {
         questions = [];
         loading = false;

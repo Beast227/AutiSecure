@@ -1,51 +1,37 @@
 class Appointment {
   final String id;
-  final String userId;
-  final String userName;
+  final String patientId;
   final String doctorId;
-  final String doctorName;
-  final String time;
+  final String startDate;
+  final String endDate;
+  final String startTime;
+  final String endTime;
+  final String description;
   final String status;
 
   Appointment({
     required this.id,
-    required this.userId,
-    required this.userName,
+    required this.patientId,
     required this.doctorId,
-    required this.doctorName,
-    required this.time,
+    required this.startDate,
+    required this.endDate,
+    required this.startTime,
+    required this.endTime,
+    required this.description,
     required this.status,
   });
 
   factory Appointment.fromJson(Map<String, dynamic> json) {
     return Appointment(
-      id: json['_id']?.toString() ?? '',
-      userId:
-          json['user'] is Map ? json['user']['_id'] ?? '' : json['user'] ?? '',
-      userName:
-          json['user'] is Map ? json['user']['name'] ?? 'Unknown' : 'Unknown',
-      doctorId:
-          json['doctor'] is Map
-              ? json['doctor']['_id'] ?? ''
-              : json['doctor'] ?? '',
-      doctorName:
-          json['doctor'] is Map
-              ? json['doctor']['name'] ?? 'Unknown'
-              : 'Unknown',
-      time: json['time'] ?? '',
-      status: json['status'] ?? 'pending',
+      id: json['_id'] ?? '',
+      patientId: json['patientId'] ?? '',
+      doctorId: json['doctorId'] ?? '',
+      startDate: json['appointmentStartDate'] ?? '',
+      endDate: json['appointmentEndDate'] ?? '',
+      startTime: json['appointmentStartTime'] ?? '',
+      endTime: json['appointmentEndTime'] ?? '',
+      description: json['description'] ?? '',
+      status: json['status'] ?? '',
     );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      '_id': id,
-      'userId': userId,
-      'userName': userName,
-      'doctorId': doctorId,
-      'doctorName': doctorName,
-      'time': time,
-      'status': status,
-    };
   }
 }

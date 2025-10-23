@@ -1,10 +1,10 @@
 // ignore: file_names
 import 'package:autisecure/globals.dart' as globals;
 import 'package:autisecure/mainScreens/doctor/doc_test_screen.dart';
-import 'package:autisecure/mainScreens/doctor/doctorDashBoard.dart';
+import 'package:autisecure/mainScreens/doctor/doctor_dashboard.dart';
 import 'package:autisecure/mainScreens/doctor/doctor_doc_screen.dart';
-import 'package:autisecure/mainScreens/doctor/live_chat/chat_list_screen.dart';
-import 'package:autisecure/mainScreens/profile.dart';
+import 'package:autisecure/live_chat2.dart';
+import 'package:autisecure/mainScreens/user/profile.dart';
 import 'package:flutter/material.dart';
 
 class DoctorLndingScreen extends StatefulWidget {
@@ -19,7 +19,7 @@ class ADoctorLndingScreenState extends State<DoctorLndingScreen> {
     DocHomeScreen(),
     DocTestScreen(),
     DocDocListScreen(),
-    ChatListScreen(),
+    LiveChat2(),
     ProfileScreen(),
   ];
 

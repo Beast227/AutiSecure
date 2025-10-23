@@ -1,10 +1,10 @@
 // ignore: file_names
 import 'dart:convert';
-import 'package:autisecure/landing_screens/Doctor_Landing_Screen.dart';
+import 'package:autisecure/landing_screens/doctor_landing_screen.dart';
 import 'package:autisecure/landing_screens/admin_landing_screen.dart';
 import 'package:autisecure/landing_screens/landing_screen.dart';
 import 'package:autisecure/login_signup/signup_screen.dart';
-import 'package:autisecure/mainScreens/home_page.dart';
+import 'package:autisecure/mainScreens/user/home_page.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
