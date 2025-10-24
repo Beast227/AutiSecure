@@ -143,13 +143,13 @@ class ApiService {
     final token = await _getToken();
 
     final res = await http.get(
-      Uri.parse("$baseUrl/appointment/pending"),
+      Uri.parse("$baseUrl/appointments/requests"),
       headers: {"Authorization": "Bearer $token"},
     );
-
+    debugPrint("$token");
     if (res.statusCode == 200) {
       final data = jsonDecode(res.body);
-      return data["appointments"];
+      return data["appointmentRequests"];
     } else {
       throw Exception("Failed to fetch appointments: ${res.body}");
     }
@@ -162,9 +162,10 @@ class ApiService {
     required String endTime,
   }) async {
     final token = await _getToken();
+    debugPrint("Data: $requestId, $date, $startTime, $endTime");
 
     final res = await http.post(
-      Uri.parse("$baseUrl/appointment/approve"),
+      Uri.parse("$baseUrl/appointments/approve"),
       headers: {
         "Content-Type": "application/json",
         "Authorization": "Bearer $token",
@@ -176,7 +177,7 @@ class ApiService {
         "endTime": endTime,
       }),
     );
-
+    debugPrint("${res.statusCode}");
     return res.statusCode == 200;
   }
 
@@ -217,6 +218,46 @@ class ApiService {
     );
 
     return res.statusCode == 200;
+  }
+
+  static Future<void> approveAppointmentWithDetails({
+    required String appointmentId,
+    required DateTime date,
+    required TimeOfDay startTime,
+    required TimeOfDay endTime,
+  }) async {
+    final token = await _getToken();
+    final response = await http.post(
+      Uri.parse('$baseUrl/appointments/approve'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'requestId': appointmentId,
+        'date': date.toIso8601String(),
+        'startTime': "${startTime.hour}:${startTime.minute}",
+        'endTime': "${endTime.hour}:${endTime.minute}",
+      }),
+    );
+    debugPrint(
+      "✅ Approved appointment $appointmentId with date/time, status: ${response.statusCode}",
+    );
+  }
+
+  static Future<void> rejectAppointment(String appointmentId) async {
+    final token = await _getToken();
+    final response = await http.post(
+      Uri.parse('$baseUrl/appointments/reject'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'appointmentId': appointmentId}),
+    );
+    debugPrint(
+      "✅ Rejected appointment $appointmentId, status: ${response.statusCode}",
+    );
   }
 
   // the below is the general api calls
@@ -310,46 +351,6 @@ class ApiService {
       debugPrint("❌ Failed to fetch appointments: $e");
       return [];
     }
-  }
-
-  static Future<void> approveAppointmentWithDetails({
-    required String appointmentId,
-    required DateTime date,
-    required TimeOfDay startTime,
-    required TimeOfDay endTime,
-  }) async {
-    final token = await _getToken();
-    final response = await http.post(
-      Uri.parse('$baseUrl/appointments/approve'),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({
-        'requestId': appointmentId,
-        'date': date.toIso8601String(),
-        'startTime': "${startTime.hour}:${startTime.minute}",
-        'endTime': "${endTime.hour}:${endTime.minute}",
-      }),
-    );
-    debugPrint(
-      "✅ Approved appointment $appointmentId with date/time, status: ${response.statusCode}",
-    );
-  }
-
-  static Future<void> rejectAppointment(String appointmentId) async {
-    final token = await _getToken();
-    final response = await http.post(
-      Uri.parse('$baseUrl/appointments/reject'),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({'appointmentId': appointmentId}),
-    );
-    debugPrint(
-      "✅ Rejected appointment $appointmentId, status: ${response.statusCode}",
-    );
   }
 }
 
