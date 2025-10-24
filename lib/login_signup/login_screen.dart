@@ -4,7 +4,6 @@ import 'package:autisecure/landing_screens/doctor_landing_screen.dart';
 import 'package:autisecure/landing_screens/admin_landing_screen.dart';
 import 'package:autisecure/landing_screens/landing_screen.dart';
 import 'package:autisecure/login_signup/signup_screen.dart';
-import 'package:autisecure/mainScreens/user/home_page.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -31,7 +30,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _checkIfLoggedIn(context) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
-    final role = prefs.getString('role');
+    // final role = prefs.getString('role');
 
     if (token != null && token.isNotEmpty) {
       // Check if the widget is still mounted before navigating
@@ -120,9 +119,11 @@ class _LoginScreenState extends State<LoginScreen> {
         _passwordController.clear();
 
         ScaffoldMessenger.of(
+          // ignore: use_build_context_synchronously
           context,
         ).showSnackBar(SnackBar(content: Text(message)));
         Navigator.push(
+          // ignore: use_build_context_synchronously
           context,
           MaterialPageRoute(
             builder: (context) => dropDownValue == "Admin"
@@ -134,6 +135,7 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       } else {
         ScaffoldMessenger.of(
+          // ignore: use_build_context_synchronously
           context,
         ).showSnackBar(
             SnackBar(content: Text("Login Failed: ${response.body}")));
@@ -142,6 +144,7 @@ class _LoginScreenState extends State<LoginScreen> {
       // Handle network errors (e.g., no internet)
       if (!mounted) return;
       ScaffoldMessenger.of(
+        // ignore: use_build_context_synchronously
         context,
       ).showSnackBar(SnackBar(content: Text("Network error: ${e.toString()}")));
     }

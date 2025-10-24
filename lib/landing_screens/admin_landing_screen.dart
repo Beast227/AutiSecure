@@ -1,9 +1,11 @@
-// Remove the globals import
-// import 'package:autisecure/globals.dart' as globals; 
-
-import 'package:autisecure/mainScreens/Admin/admin.dart';
-import 'package:autisecure/mainScreens/user/profile.dart';
 import 'package:flutter/material.dart';
+
+// --- UPDATED IMPORTS ---
+import 'package:autisecure/mainScreens/Admin/admin.dart'; // Keep this for AdminDashboard
+// import 'package:autisecure/mainScreens/user/profile.dart'; // Remove User Profile
+import 'package:autisecure/mainScreens/Admin/profile.dart'; // Add Admin Profile (assuming file is admin_profile.dart)
+// --- END UPDATED IMPORTS ---
+
 
 class AdminLandingScreen extends StatefulWidget {
   const AdminLandingScreen({super.key});
@@ -13,15 +15,15 @@ class AdminLandingScreen extends StatefulWidget {
 }
 
 class _AdminLandingScreenState extends State<AdminLandingScreen> {
-  // 1. Manage the index here. It safely starts at 0 every time.
   int _selectedIndex = 0;
 
+  // --- UPDATED PAGES LIST ---
   final List<Widget> pages = [
     AdminDashboard(),
-    ProfileScreen(),
+    AdminProfileScreen(), // Use AdminProfileScreen here
   ];
+  // --- END UPDATED PAGES LIST ---
 
-  // 2. Update the local state variable
   void onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
@@ -29,7 +31,7 @@ class _AdminLandingScreenState extends State<AdminLandingScreen> {
   }
 
   Widget buildHeader() {
-    // ... (this function is fine, no changes)
+    // No changes needed here
     return Row(
       children: [
         Container(
@@ -57,20 +59,20 @@ class _AdminLandingScreenState extends State<AdminLandingScreen> {
   }
 
   Widget buildBottomNavBar() {
+    // No changes needed here
     return BottomNavigationBar(
       selectedItemColor: Colors.orange,
       unselectedItemColor: Colors.black,
-      // 3. Use the local _selectedIndex
       currentIndex: _selectedIndex,
       onTap: onItemTapped,
       type: BottomNavigationBarType.fixed,
       items: const [
         BottomNavigationBarItem(
-          icon: Icon(Icons.home, size: 30),
-          label: "Home",
+          icon: Icon(Icons.dashboard_customize_outlined, size: 30), // Changed icon
+          label: "Dashboard", // Changed label
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.person, size: 30),
+          icon: Icon(Icons.person_outline, size: 30), // Changed icon
           label: "Profile",
         ),
       ],
@@ -79,6 +81,7 @@ class _AdminLandingScreenState extends State<AdminLandingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // No changes needed here
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
@@ -86,7 +89,6 @@ class _AdminLandingScreenState extends State<AdminLandingScreen> {
         backgroundColor: Colors.orange,
         title: buildHeader(),
       ),
-      // 4. Use the local _selectedIndex
       body: pages[_selectedIndex],
       bottomNavigationBar: buildBottomNavBar(),
     );
