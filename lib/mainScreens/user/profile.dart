@@ -100,8 +100,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       userRole == "Doctor"
           ? "https://autisense-backend.onrender.com/api/doctor/data"
           : userRole == "Admin"
-              ? "https://autisense-backend.onrender.com/api/admin"
-              : "https://autisense-backend.onrender.com/api/user/data",
+          ? "https://autisense-backend.onrender.com/api/admin"
+          : "https://autisense-backend.onrender.com/api/user/data",
     );
 
     try {
@@ -231,7 +231,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (userRole == "Doctor") {
       _originalDataSnapshot.addAll({
         "speciality": specialization.text.trim(),
-        "experience": experience.text.trim(), // Store as text for simple comparison
+        "experience":
+            experience.text.trim(), // Store as text for simple comparison
         "description": docInfo.text.trim(),
         "clinicAddress": clinicLoc.text.trim(),
       });
@@ -264,7 +265,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       apiPayload.addAll({
         "speciality": specialization.text.trim(),
-        "experience": int.tryParse(experience.text.trim()) ?? 0, // API needs int
+        "experience":
+            int.tryParse(experience.text.trim()) ?? 0, // API needs int
         "description": docInfo.text.trim(),
         "clinicAddress": clinicLoc.text.trim(),
       });
@@ -272,7 +274,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     // 2. Compare the current map to the snapshot
     bool hasChanges =
-        json.encode(currentDataForComparison) != json.encode(_originalDataSnapshot);
+        json.encode(currentDataForComparison) !=
+        json.encode(_originalDataSnapshot);
 
     if (!hasChanges) {
       _showSnackBar("No changes detected.");
@@ -296,7 +299,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         url,
         headers: {
           'authorization': 'Bearer $token',
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
         body: json.encode(apiPayload), // Use the correctly typed apiPayload
       );
@@ -306,7 +309,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
         // --- THIS IS THE FIX ---
         // DO NOT use response.body. Update cache with the plain text payload.
-        
+
         // 1. Get old cache to preserve non-editable fields (like email, imageUrl)
         final oldCacheString = prefs.getString('userDataCache');
         Map<String, dynamic> updatedCacheData = {};
@@ -339,65 +342,83 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Scaffold(
       backgroundColor: const Color.fromARGB(255, 245, 245, 245),
       appBar: AppBar(
-        title: const Text("My Profile"),
-        backgroundColor: const Color(0xFFFFF2E0),
-        elevation: 1,
-        actions: [
-          // Edit/Save Button
-          IconButton(
-            icon: Icon(_isEditing ? Icons.save_as_outlined : Icons.edit_outlined),
-            onPressed: () {
-              if (_isEditing) {
-                _submitUpdate(); // Call save
-              } else {
-                _takeDataSnapshot(); // <-- TAKE SNAPSHOT
-                if (mounted) {
-                  setState(() => _isEditing = true); // Enter edit mode
-                }
-              }
-            },
-          ),
-        ],
-      ),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SafeArea(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    _buildProfileHeader(),
-                    const SizedBox(height: 20),
-                    _buildPersonalDetailsForm(),
-                    const SizedBox(height: 20),
-                    if (userRole == "Doctor") ...[
-                      _buildDoctorDetailsForm(),
-                      const SizedBox(height: 20),
-                    ],
-                    ElevatedButton.icon(
-                      onPressed: _logOut,
-                      icon: const Icon(Icons.logout, color: Colors.white),
-                      label: const Text(
-                        "Log Out",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          fontFamily: "Merriweather",
-                          color: Colors.white,
-                        ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        minimumSize: const Size(double.infinity, 50),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                  ],
+        automaticallyImplyLeading: false,
+        title: Stack(
+          alignment: Alignment.center,
+          children: [
+            Center(
+              child: Text(
+                "My Profile",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.orange,
                 ),
               ),
             ),
+            Positioned(
+              right: 0,
+              child: IconButton(
+                icon: Icon(
+                  _isEditing ? Icons.save_as_outlined : Icons.edit_outlined,
+                  color: Colors.black87,
+                ),
+                onPressed: () {
+                  if (_isEditing) {
+                    _submitUpdate();
+                  } else {
+                    _takeDataSnapshot();
+                    if (mounted) {
+                      setState(() => _isEditing = true);
+                    }
+                  }
+                },
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFFFFF2E0),
+        elevation: 1,
+      ),
+      body:
+          isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : SafeArea(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      _buildProfileHeader(),
+                      const SizedBox(height: 20),
+                      _buildPersonalDetailsForm(),
+                      const SizedBox(height: 20),
+                      if (userRole == "Doctor") ...[
+                        _buildDoctorDetailsForm(),
+                        const SizedBox(height: 20),
+                      ],
+                      ElevatedButton.icon(
+                        onPressed: _logOut,
+                        icon: const Icon(Icons.logout, color: Colors.white),
+                        label: const Text(
+                          "Log Out",
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: "Merriweather",
+                            color: Colors.white,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                          minimumSize: const Size(double.infinity, 50),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
     );
   }
 
@@ -410,11 +431,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         color: const Color(0xFFFFF2E0),
         borderRadius: BorderRadius.circular(20),
         boxShadow: const [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 6,
-            offset: Offset(0, 3),
-          ),
+          BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 3)),
         ],
       ),
       child: Column(
@@ -425,14 +442,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
               CircleAvatar(
                 radius: 60,
                 backgroundColor: Colors.white,
-                backgroundImage: _imageFile != null
-                    ? FileImage(_imageFile!)
-                    : (profileImageUrl != null
-                        ? NetworkImage(profileImageUrl!)
-                        : null) as ImageProvider?,
-                child: _imageFile == null && profileImageUrl == null
-                    ? const Icon(Icons.person, size: 60, color: Colors.grey)
-                    : null,
+                backgroundImage:
+                    _imageFile != null
+                        ? FileImage(_imageFile!)
+                        : (profileImageUrl != null
+                                ? NetworkImage(profileImageUrl!)
+                                : null)
+                            as ImageProvider?,
+                child:
+                    _imageFile == null && profileImageUrl == null
+                        ? const Icon(Icons.person, size: 60, color: Colors.grey)
+                        : null,
               ),
               if (_isEditing) // Only show edit icon when in edit mode
                 Positioned(
@@ -487,11 +507,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
             const Divider(height: 20),
-            buildTextField(
-              "Name",
-              _nameController,
-              icon: Icons.person_outline,
-            ),
+            buildTextField("Name", _nameController, icon: Icons.person_outline),
             buildTextField(
               "Email",
               _emailController,
@@ -502,7 +518,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               "Phone Number",
               _phController,
               icon: Icons.phone_outlined,
-              keyboardType: TextInputType.phone
+              keyboardType: TextInputType.phone,
             ),
             buildTextField(
               "Address",
@@ -516,8 +532,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 controller: _dobController,
                 readOnly: true, // Always readOnly, tap is handled manually
                 decoration: InputDecoration(
-                  prefixIcon: const Icon(Icons.calendar_today_outlined,
-                      color: Color(0xFFB97001)),
+                  prefixIcon: const Icon(
+                    Icons.calendar_today_outlined,
+                    color: Color(0xFFB97001),
+                  ),
                   labelText: "Date of Birth",
                   filled: true,
                   fillColor: _isEditing ? Colors.white : Colors.grey.shade100,
@@ -525,12 +543,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     horizontal: 15,
                     vertical: 14,
                   ),
-                  border:
-                      OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide:
-                        const BorderSide(color: Color(0xFFB97001), width: 2),
+                    borderSide: const BorderSide(
+                      color: Color(0xFFB97001),
+                      width: 2,
+                    ),
                   ),
                 ),
                 onTap: () async {
@@ -591,11 +612,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               clinicLoc,
               icon: Icons.location_on_outlined,
             ),
-            buildTextField(
-              "About Yourself",
-              docInfo,
-              icon: Icons.info_outline,
-            ),
+            buildTextField("About Yourself", docInfo, icon: Icons.info_outline),
           ],
         ),
       ),
@@ -616,14 +633,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         readOnly: readOnlyOverride || !_isEditing,
         keyboardType: keyboardType,
         decoration: InputDecoration(
-          prefixIcon: icon != null
-              ? Icon(icon, color: const Color(0xFFB97001))
-              : null,
+          prefixIcon:
+              icon != null ? Icon(icon, color: const Color(0xFFB97001)) : null,
           labelText: label,
           filled: true,
-          fillColor: _isEditing && !readOnlyOverride
-              ? Colors.white
-              : Colors.grey.shade100,
+          fillColor:
+              _isEditing && !readOnlyOverride
+                  ? Colors.white
+                  : Colors.grey.shade100,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 15,
             vertical: 14,

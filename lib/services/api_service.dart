@@ -111,6 +111,115 @@ Future<Map<String, dynamic>> getSurveyScore() async {
 class ApiService {
   static const String baseUrl = "https://autisense-backend.onrender.com/api";
 
+  static Future<String?> _getToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('token');
+  }
+
+  // live chat api calls
+  static Future<List<dynamic>> fetchConversations({
+    required String role,
+  }) async {
+    final token = await _getToken();
+    final endpoint =
+        role == 'doctor'
+            ? "$baseUrl/conversation/doctor"
+            : "$baseUrl/conversation/user";
+
+    final res = await http.get(
+      Uri.parse(endpoint),
+      headers: {"Authorization": "Bearer $token"},
+    );
+
+    if (res.statusCode == 200) {
+      final data = jsonDecode(res.body);
+      return data["conversations"];
+    } else {
+      throw Exception("Failed to fetch conversations: ${res.body}");
+    }
+  }
+
+  static Future<List<dynamic>> fetchPendingAppointments() async {
+    final token = await _getToken();
+
+    final res = await http.get(
+      Uri.parse("$baseUrl/appointment/pending"),
+      headers: {"Authorization": "Bearer $token"},
+    );
+
+    if (res.statusCode == 200) {
+      final data = jsonDecode(res.body);
+      return data["appointments"];
+    } else {
+      throw Exception("Failed to fetch appointments: ${res.body}");
+    }
+  }
+
+  static Future<bool> approveAppointment({
+    required String requestId,
+    required String date,
+    required String startTime,
+    required String endTime,
+  }) async {
+    final token = await _getToken();
+
+    final res = await http.post(
+      Uri.parse("$baseUrl/appointment/approve"),
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer $token",
+      },
+      body: jsonEncode({
+        "requestId": requestId,
+        "date": date,
+        "startTime": startTime,
+        "endTime": endTime,
+      }),
+    );
+
+    return res.statusCode == 200;
+  }
+
+  static Future<List<dynamic>> fetchMessages(String conversationId) async {
+    final token = await _getToken();
+
+    final res = await http.get(
+      Uri.parse("$baseUrl/chat/$conversationId"),
+      headers: {"Authorization": "Bearer $token"},
+    );
+
+    if (res.statusCode == 200) {
+      final data = jsonDecode(res.body);
+      return data["messages"];
+    } else {
+      throw Exception("Failed to load messages");
+    }
+  }
+
+  static Future<bool> sendMessage({
+    required String conversationId,
+    required String senderId,
+    required String message,
+  }) async {
+    final token = await _getToken();
+
+    final res = await http.post(
+      Uri.parse("$baseUrl/chat/send"),
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer $token",
+      },
+      body: jsonEncode({
+        "conversationId": conversationId,
+        "senderId": senderId,
+        "message": message,
+      }),
+    );
+
+    return res.statusCode == 200;
+  }
+
+  // the below is the general api calls
   static Future<Map<String, dynamic>> fetchDoctors({
     required int page,
     required int limit,
@@ -145,7 +254,8 @@ class ApiService {
         // }
         final List<dynamic> doctorsData = data['doctors'] ?? [];
         final int currentPage = data['currentPage'] ?? page;
-        final int totalPages = data['totalPages'] ?? 1; // Default to 1 if not provided
+        final int totalPages =
+            data['totalPages'] ?? 1; // Default to 1 if not provided
         // Determine if there are more pages based on the response
         final bool hasMoreData = currentPage < totalPages;
         // --- End of backend assumption ---
@@ -158,17 +268,13 @@ class ApiService {
       } else {
         // Provide more specific error information
         throw Exception(
-            'Failed to load doctors (Status ${response.statusCode}): ${response.body}');
+          'Failed to load doctors (Status ${response.statusCode}): ${response.body}',
+        );
       }
     } catch (e) {
       // Catch network or decoding errors
       throw Exception('Failed to fetch doctors: $e');
     }
-  }
-
-  static Future<String?> _getToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('token');
   }
 
   static Future<List<Appointment>> fetchAppointmentRequests() async {
