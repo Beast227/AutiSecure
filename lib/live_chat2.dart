@@ -351,11 +351,13 @@ class _LiveChat2State extends State<LiveChat2> {
                       );
 
                       if (success) {
+                        // ignore: use_build_context_synchronously
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text("Appointment approved successfully!"),
                           ),
                         );
+                        // ignore: use_build_context_synchronously
                         Navigator.pop(context);
                         await _loadConversations();
                       }

@@ -1,4 +1,6 @@
+// ignore: duplicate_ignore
 // ignore: file_names
+// ignore_for_file: file_names
 import 'package:autisecure/globals.dart' as globals;
 import 'package:autisecure/mainScreens/doctor/doc_test_screen.dart';
 import 'package:autisecure/mainScreens/doctor/doctor_dashboard.dart';
