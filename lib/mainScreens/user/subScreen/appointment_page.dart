@@ -40,6 +40,14 @@ class _AppointmentPageState extends State<AppointmentPage> {
       ).showSnackBar(const SnackBar(content: Text("Please fill all fields.")));
       return;
     }
+
+    if (endDate!.isBefore(startDate!)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("End date must be after start date.")),
+      );
+      return;
+    }
+
     final prefs = await SharedPreferences.getInstance();
     final url = Uri.parse(
       "https://autisense-backend.onrender.com/api/appointments/create",
@@ -68,15 +76,26 @@ class _AppointmentPageState extends State<AppointmentPage> {
         url,
         headers: {
           "Content-Type": "application/json",
-          "Authorization": "Barer $token",
+          "Authorization": "Bearer $token",
         },
         body: jsonEncode(body),
       );
       if (response.statusCode == 200 || response.statusCode == 201) {
-        debugPrint("THe appointment has been submitted!!\n\n");
+        debugPrint("Appointment successfully submitted!!\n\n");
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Appointment booked successfully!")),
+        );
+
+        if (mounted) Navigator.pop(context);
       } else {
         debugPrint(
           "The appointment couldnt be booked due to :${response.body}",
+        );
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Failed to book appointment: ${response.body}"),
+          ),
         );
       }
     } catch (e) {

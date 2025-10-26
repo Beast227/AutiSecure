@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:autisecure/mainScreens/user/subScreen/appointment_page.dart';
 import 'package:autisecure/services/api_service.dart';
 import 'package:autisecure/widgets/doctor_card.dart';
 import 'package:flutter/material.dart';
@@ -261,8 +262,11 @@ class _DoctorListScreenState extends State<DoctorListScreen> {
             child: DoctorCard(
               doctor: doctor,
               onBookPressed: () {
-                _showSnackBar(
-                  "Book appointment with ${doctor['name'] ?? "Doctor"}",
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AppointmentPage(doctor: doctor),
+                  ),
                 );
               },
             ),

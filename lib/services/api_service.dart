@@ -139,7 +139,7 @@ class ApiService {
     }
   }
 
-  static Future<List<dynamic>> fetchPendingAppointments() async {
+  static Future<List<Map<String, dynamic>>> fetchPendingAppointments() async {
     final token = await _getToken();
 
     final res = await http.get(
@@ -147,9 +147,53 @@ class ApiService {
       headers: {"Authorization": "Bearer $token"},
     );
     debugPrint("$token");
+
     if (res.statusCode == 200) {
       final data = jsonDecode(res.body);
-      return data["appointmentRequests"];
+
+      final approvedReq = data['appointmentRequests'];
+      
+      if (approvedReq == null || approvedReq is! List) {
+        debugPrint("No approved requests found or invalid structure.");
+        return [];
+      }
+
+      // Safely cast each element to Map<String, dynamic>
+      final List<Map<String, dynamic>> appointments =
+          (data["appointmentRequests"] as List)
+              .map((e) => e as Map<String, dynamic>)
+              .toList();
+
+      return appointments;
+    } else {
+      throw Exception("Failed to fetch appointments: ${res.body}");
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> fetchapprovedAppointments() async {
+    final token = await _getToken();
+
+    final res = await http.get(
+      Uri.parse("$baseUrl/appointments/approve"),
+      headers: {"Authorization": "Bearer $token"},
+    );
+    if (res.statusCode == 200) {
+      final data = jsonDecode(res.body);
+      final approvedReq = data['approvedRequests'];
+      debugPrint(
+        " the data fetched here is as follows \n\n${data['approvedRequests']}",
+      );
+
+      if (approvedReq == null || approvedReq is! List) {
+        debugPrint("No approved requests found or invalid structure.");
+        return [];
+      }
+      final List<Map<String, dynamic>> appointments =
+          approvedReq
+              .map((item) => Map<String, dynamic>.from(item as Map))
+              .toList();
+
+      return appointments;
     } else {
       throw Exception("Failed to fetch appointments: ${res.body}");
     }

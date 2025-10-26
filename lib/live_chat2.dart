@@ -23,7 +23,8 @@ class _LiveChat2State extends State<LiveChat2>
   String? selectedConversationId;
   List conversations = [];
   List messages = [];
-  List appointments = [];
+  List<Map<String, dynamic>> approvedAppointments = [];
+  List<Map<String, dynamic>> pendingAppointments = [];
 
   final TextEditingController messageController = TextEditingController();
 
@@ -31,6 +32,7 @@ class _LiveChat2State extends State<LiveChat2>
   void initState() {
     super.initState();
     _loadUserDetails();
+    _loadAppointments();
   }
 
   Future<void> _loadUserDetails() async {
@@ -62,11 +64,17 @@ class _LiveChat2State extends State<LiveChat2>
 
   Future<void> _loadAppointments() async {
     try {
-      final data = await ApiService.fetchPendingAppointments();
-      setState(() => appointments = data);
-      debugPrint("\nThhe appointments are :\n$appointments\n");
+      final data1 = await ApiService.fetchPendingAppointments();
+      final data2 = await ApiService.fetchapprovedAppointments();
+      setState(() {
+        approvedAppointments = data2;
+        pendingAppointments = data1;
+      });
+      debugPrint(
+        "\nThhe appointments are :\n$approvedAppointments\n\n\t\t\t\t\t\t\t $pendingAppointments",
+      );
     } catch (e) {
-      debugPrint("Error loading appointments: $e");
+      debugPrint("\n\nError loading appointments: $e\n\n");
     }
   }
 
@@ -116,16 +124,12 @@ class _LiveChat2State extends State<LiveChat2>
         borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
       ),
       builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            // Load appointments if not already loaded
-            if (appointments.isEmpty) {
-              _loadAppointments().then((_) => setModalState(() {}));
-            }
-
-            if (appointments.isEmpty) {
+        return FutureBuilder(
+          future: _loadAppointments(), // ✅ always reload fresh
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
               return SizedBox(
-                height: 200,
+                height: 300,
                 child: Center(
                   child: CircularProgressIndicator(
                     color: Colors.orange.shade700,
@@ -134,63 +138,138 @@ class _LiveChat2State extends State<LiveChat2>
               );
             }
 
-            return DraggableScrollableSheet(
-              expand: false,
-              initialChildSize: 0.6,
-              maxChildSize: 0.95,
-              builder: (context, controller) {
-                return ListView.builder(
-                  controller: controller,
-                  padding: const EdgeInsets.all(16),
-                  itemCount: appointments.length,
-                  itemBuilder: (context, index) {
-                    final req = appointments[index];
+            return StatefulBuilder(
+              builder: (context, setModalState) {
+                Widget buildCard(
+                  Map<String, dynamic> req, {
+                  bool approved = false,
+                }) {
+                  final dateStr = req['date'] ?? req['appointmentStartDate'];
+                  final date = DateTime.tryParse(dateStr ?? '');
+                  final formattedDate =
+                      date != null
+                          ? DateFormat('yyyy-MM-dd').format(date)
+                          : 'Unknown';
 
-                    // Parse date
-                    final startDate = DateTime.tryParse(
-                      req['appointmentStartDate'] ?? '',
-                    );
-                    final formattedDate =
-                        startDate != null
-                            ? DateFormat('yyyy-MM-dd').format(startDate)
-                            : 'Unknown Date';
+                  final startTime = req['appointmentStartTime'] ?? 'Not set';
+                  final endTime = req['appointmentEndTime'] ?? 'Not set';
+                  final patient = req['patient']?['name'] ?? 'Unknown';
+                  final description = req['description'] ?? 'No description';
 
-                    // Use description as subtitle
-                    final description = req['description'] ?? 'No description';
-
-                    // Show patientId for now (replace with actual name if available)
-                    final patientName =
-                        req['patient']['name'] ?? req['patientId'] ?? 'Unknown';
-
-                    debugPrint("🔹 Appointment: $req");
-
-                    return Card(
-                      margin: const EdgeInsets.symmetric(vertical: 8),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                  return Card(
+                    color: approved ? Colors.green.shade50 : null,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    elevation: 2,
+                    margin: const EdgeInsets.symmetric(vertical: 6),
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: Colors.orange.shade100,
+                        child: Text(patient[0].toUpperCase()),
                       ),
-                      elevation: 3,
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: Colors.orange.shade100,
-                          child: Text(patientName[0]),
+                      title: Text(
+                        patient,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 4),
+                          Text("Date: $formattedDate"),
+                          Text("Time : $startTime to $endTime"),
+                          Text("Issue: $description"),
+                        ],
+                      ),
+                      trailing: Icon(
+                        approved ? Icons.check_circle : Icons.arrow_forward_ios,
+                        color: approved ? Colors.green : Colors.orange,
+                      ),
+                      onTap:
+                          approved
+                              ? null
+                              : () => _showApprovalForm(req, () async {
+                                await _loadAppointments();
+                                setModalState(() {});
+                              }),
+                    ),
+                  );
+                }
+
+                Widget buildSection(
+                  String title,
+                  List<Map<String, dynamic>> list, {
+                  bool approved = false,
+                }) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color:
+                              approved
+                                  ? Colors.green.shade700
+                                  : Colors.orange.shade700,
                         ),
-                        title: Text(patientName),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text("description: $description"),
-                            Text("Date: $formattedDate"),
-                            Text(
-                              "Time: ${req['appointmentStartTime']} - ${req['appointmentEndTime']}",
+                      ),
+                      const SizedBox(height: 10),
+                      if (list.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 30),
+                          child: Center(
+                            child: Text(
+                              approved
+                                  ? "No approved appointments 🎉"
+                                  : "No pending requests 🎉",
+                              style: const TextStyle(
+                                color: Colors.grey,
+                                fontStyle: FontStyle.italic,
+                              ),
                             ),
-                          ],
-                        ),
-                        trailing: const Icon(
-                          Icons.arrow_forward_ios,
-                          color: Colors.orange,
-                        ),
-                        onTap: () => _showApprovalForm(req),
+                          ),
+                        )
+                      else
+                        ...list.map((e) => buildCard(e, approved: approved)),
+                      const SizedBox(height: 15),
+                      Divider(thickness: 1, color: Colors.grey.shade300),
+                    ],
+                  );
+                }
+
+                return DraggableScrollableSheet(
+                  expand: false,
+                  initialChildSize: 0.7,
+                  maxChildSize: 0.95,
+                  builder: (_, controller) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      child: ListView(
+                        controller: controller,
+                        children: [
+                          Center(
+                            child: Container(
+                              width: 40,
+                              height: 5,
+                              margin: const EdgeInsets.only(top: 8, bottom: 16),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade300,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                          ),
+                          buildSection(
+                            "Approved Requests",
+                            approvedAppointments,
+                            approved: true,
+                          ),
+                          buildSection("Pending Requests", pendingAppointments),
+                        ],
                       ),
                     );
                   },
@@ -314,12 +393,52 @@ class _LiveChat2State extends State<LiveChat2>
     );
   }
 
-  void _showApprovalForm(Map<String, dynamic> request) {
+  void showOverlayToast(
+    BuildContext context,
+    String message, {
+    Color? bgColor,
+  }) {
+    final overlay = Overlay.of(context);
+    final overlayEntry = OverlayEntry(
+      builder:
+          (_) => Positioned(
+            top: 50,
+            left: 20,
+            right: 20,
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 14,
+                  horizontal: 20,
+                ),
+                decoration: BoxDecoration(
+                  color: bgColor ?? Colors.orange.shade700,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  message,
+                  style: const TextStyle(color: Colors.white, fontSize: 16),
+                ),
+              ),
+            ),
+          ),
+    );
+
+    overlay.insert(overlayEntry);
+    Future.delayed(const Duration(seconds: 2), () => overlayEntry.remove());
+  }
+
+  Future<void> _showApprovalForm(
+    Map<String, dynamic> request,
+    VoidCallback refreshModal,
+  ) async {
     DateTime? date;
     TimeOfDay? start;
     TimeOfDay? end;
+    bool isLoading = false;
 
-    showModalBottomSheet(
+    await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
@@ -328,7 +447,13 @@ class _LiveChat2State extends State<LiveChat2>
       ),
       builder: (context) {
         return StatefulBuilder(
-          builder: (context, setStateModal) {
+          builder: (context, setModalState) {
+            final safeName = request['patient']?['name'] ?? 'Unknown';
+            final issue =
+                (request['description']?.toString().trim().isNotEmpty ?? false)
+                    ? request['description']
+                    : 'No description provided';
+
             return Padding(
               padding: EdgeInsets.only(
                 bottom: MediaQuery.of(context).viewInsets.bottom,
@@ -336,180 +461,224 @@ class _LiveChat2State extends State<LiveChat2>
                 right: 20,
                 top: 25,
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    "Approve Appointment",
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.orange.shade800,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 45,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
                     ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Patient Info
-                  Text(
-                    "Patient: ${request['patient']['name']}",
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.grey.shade800,
+                    const SizedBox(height: 16),
+                    Text(
+                      "Approve Appointment",
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.orange.shade800,
+                      ),
+                      textAlign: TextAlign.center,
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    "Issue: ${request['description']}",
-                    style: TextStyle(fontSize: 16, color: Colors.grey.shade700),
-                  ),
-                  const SizedBox(height: 20),
+                    const SizedBox(height: 20),
+                    Text(
+                      "Patient: $safeName",
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      "Issue: $issue",
+                      style: const TextStyle(color: Colors.grey, fontSize: 16),
+                    ),
+                    const SizedBox(height: 20),
 
-                  // Date Picker
-                  _buildPickerButton(
-                    context: context,
-                    icon: Icons.calendar_month,
-                    label:
-                        date == null
-                            ? "Select Date"
-                            : DateFormat('yyyy-MM-dd').format(date!),
-                    onPressed: () async {
-                      final d = await showDatePicker(
-                        context: context,
-                        initialDate: DateTime.now(),
-                        firstDate: DateTime.now(),
-                        lastDate: DateTime(2100),
-                      );
-                      if (d != null) setStateModal(() => date = d);
-                    },
-                  ),
-                  const SizedBox(height: 12),
+                    // Date & Time Pickers
+                    _buildPickerButton(
+                      context: context,
+                      icon: Icons.calendar_month,
+                      label:
+                          date == null
+                              ? "Select Date"
+                              : DateFormat('yyyy-MM-dd').format(date!),
+                      onPressed: () async {
+                        final d = await showDatePicker(
+                          context: context,
+                          initialDate: DateTime.now(),
+                          firstDate: DateTime.now(),
+                          lastDate: DateTime(2100),
+                        );
+                        if (d != null) setModalState(() => date = d);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    _buildPickerButton(
+                      context: context,
+                      icon: Icons.access_time,
+                      label:
+                          start == null
+                              ? "Select Start Time"
+                              : start!.format(context),
+                      onPressed: () async {
+                        final t = await showTimePicker(
+                          context: context,
+                          initialTime: TimeOfDay.now(),
+                        );
+                        if (t != null) setModalState(() => start = t);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    _buildPickerButton(
+                      context: context,
+                      icon: Icons.timer_off,
+                      label:
+                          end == null
+                              ? "Select End Time"
+                              : end!.format(context),
+                      onPressed: () async {
+                        final t = await showTimePicker(
+                          context: context,
+                          initialTime: TimeOfDay.now(),
+                        );
+                        if (t != null) setModalState(() => end = t);
+                      },
+                    ),
+                    const SizedBox(height: 25),
 
-                  // Start Time Picker
-                  _buildPickerButton(
-                    context: context,
-                    icon: Icons.access_time,
-                    label:
-                        start == null
-                            ? "Select Start Time"
-                            : start!.format(context),
-                    onPressed: () async {
-                      final t = await showTimePicker(
-                        context: context,
-                        initialTime: TimeOfDay.now(),
-                      );
-                      if (t != null) setStateModal(() => start = t);
-                    },
-                  ),
-                  const SizedBox(height: 12),
-
-                  // End Time Picker
-                  _buildPickerButton(
-                    context: context,
-                    icon: Icons.timer_off,
-                    label:
-                        end == null ? "Select End Time" : end!.format(context),
-                    onPressed: () async {
-                      final t = await showTimePicker(
-                        context: context,
-                        initialTime: TimeOfDay.now(),
-                      );
-                      if (t != null) setStateModal(() => end = t);
-                    },
-                  ),
-                  const SizedBox(height: 25),
-
-                  // Action Buttons: Confirm & Reject
-                  Row(
-                    children: [
-                      // Reject Button
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () {
-                            Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text("Appointment Rejected"),
+                    if (isLoading)
+                      Center(
+                        child: CircularProgressIndicator(
+                          color: Colors.orange.shade700,
+                        ),
+                      )
+                    else
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () async {
+                                setModalState(() => isLoading = true);
+                                await ApiService.rejectAppointment(
+                                  request['appointmentId'],
+                                );
+                                showOverlayToast(
+                                  context,
+                                  "Appointment Rejected",
+                                  bgColor: Colors.red.shade600,
+                                );
+                                refreshModal();
+                                Navigator.pop(context);
+                              },
+                              style: OutlinedButton.styleFrom(
+                                side: BorderSide(
+                                  color: Colors.red.shade600,
+                                  width: 1.5,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                               ),
-                            );
-                          },
-                          style: OutlinedButton.styleFrom(
-                            side: BorderSide(
-                              color: Colors.red.shade600,
-                              width: 1.5,
-                            ),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          child: Text(
-                            "Reject",
-                            style: TextStyle(
-                              color: Colors.red.shade600,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-
-                      // Confirm Button
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () async {
-                            if (date == null || start == null || end == null) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text("Please select all details."),
+                              child: Text(
+                                "Reject",
+                                style: TextStyle(
+                                  color: Colors.red.shade600,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
                                 ),
-                              );
-                              return;
-                            }
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () async {
+                                if (date == null ||
+                                    start == null ||
+                                    end == null) {
+                                  showOverlayToast(
+                                    context,
+                                    "Please select all details",
+                                    bgColor: Colors.red.shade600,
+                                  );
+                                  return;
+                                }
+                                final startM = start!.hour * 60 + start!.minute;
+                                final endM = end!.hour * 60 + end!.minute;
+                                if (endM <= startM) {
+                                  showOverlayToast(
+                                    context,
+                                    "End time must be after start time",
+                                    bgColor: Colors.red.shade600,
+                                  );
+                                  return;
+                                }
 
-                            final success = await ApiService.approveAppointment(
-                              requestId: request["_id"],
-                              date: DateFormat('yyyy-MM-dd').format(date!),
-                              startTime: start!.format(context),
-                              endTime: end!.format(context),
-                            );
+                                setModalState(() => isLoading = true);
+                                final success =
+                                    await ApiService.approveAppointment(
+                                      requestId:
+                                          request["appointmentId"]
+                                              ?.toString() ??
+                                          "",
+                                      date: DateFormat(
+                                        'yyyy-MM-dd',
+                                      ).format(date!),
+                                      startTime: start!.format(context),
+                                      endTime: end!.format(context),
+                                    );
+                                setModalState(() => isLoading = false);
 
-                            if (success) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    "Appointment approved successfully!",
-                                  ),
+                                if (success) {
+                                  showOverlayToast(
+                                    context,
+                                    "Appointment approved successfully",
+                                    bgColor: Colors.green.shade600,
+                                  );
+                                  refreshModal();
+                                  Navigator.pop(context);
+                                } else {
+                                  showOverlayToast(
+                                    context,
+                                    "Failed to approve appointment",
+                                    bgColor: Colors.red.shade600,
+                                  );
+                                }
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.orange.shade700,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
                                 ),
-                              );
-                              Navigator.pop(context);
-                              await _loadConversations();
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            backgroundColor: Colors.orange.shade700,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: const Text(
+                                "Confirm",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                  color: Colors.white,
+                                ),
+                              ),
                             ),
                           ),
-                          child: const Text(
-                            "Confirm",
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
+                        ],
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 25),
-                ],
+                    const SizedBox(height: 25),
+                  ],
+                ),
               ),
             );
           },
