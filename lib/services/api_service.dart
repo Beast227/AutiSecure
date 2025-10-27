@@ -117,25 +117,44 @@ class ApiService {
   }
 
   // live chat api calls
-  static Future<List<dynamic>> fetchConversations({
+  // In your api_service.dart
+
+  static Future<List<Map<String, dynamic>>> fetchConversations({
+    // Changed return type
     required String role,
   }) async {
     final token = await _getToken();
+    if (token == null || token.isEmpty) {
+      throw Exception('Authentication token not found.');
+    }
+
+    // Use the correct endpoints corresponding to your routes
     final endpoint =
         role == 'doctor'
-            ? "$baseUrl/conversation/doctor"
-            : "$baseUrl/conversation/user";
+            ? "$baseUrl/conversation/doctor" // Ensure this matches your route
+            : "$baseUrl/conversation/user"; // Ensure this matches your route
 
-    final res = await http.get(
-      Uri.parse(endpoint),
-      headers: {"Authorization": "Bearer $token"},
-    );
+    try {
+      // Add try-catch block
+      final res = await http.get(
+        Uri.parse(endpoint),
+        headers: {"Authorization": "Bearer $token"},
+      );
 
-    if (res.statusCode == 200) {
-      final data = jsonDecode(res.body);
-      return data["conversations"];
-    } else {
-      throw Exception("Failed to fetch conversations: ${res.body}");
+      if (res.statusCode == 200) {
+        // Decode the response body, which IS the array
+        final List<dynamic> data = jsonDecode(res.body);
+        // Cast the dynamic list to the expected type and return it directly
+        return data.cast<Map<String, dynamic>>();
+      } else {
+        // Throw a more informative exception
+        throw Exception(
+          "Failed to fetch conversations (Status ${res.statusCode}): ${res.body}",
+        );
+      }
+    } catch (e) {
+      // Catch network or decoding errors
+      throw Exception("Error during fetchConversations: $e");
     }
   }
 
@@ -152,7 +171,7 @@ class ApiService {
       final data = jsonDecode(res.body);
 
       final approvedReq = data['appointmentRequests'];
-      
+
       if (approvedReq == null || approvedReq is! List) {
         debugPrint("No approved requests found or invalid structure.");
         return [];
