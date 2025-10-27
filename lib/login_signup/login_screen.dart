@@ -57,32 +57,34 @@ class _LoginScreenState extends State<LoginScreen> {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
 
-    // Email Regex: Standard email validation
     final emailRegex = RegExp(
         r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+");
-
-    // Password Regex: Minimum 8 characters, at least one letter and one number
     final passwordRegex = RegExp(r'^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$');
 
     if (email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Email and password cannot be empty")));
+          const SnackBar(content: Text("Email and password cannot be empty")));
       return;
     }
-
     if (!emailRegex.hasMatch(email)) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text("Invalid email format")));
+          .showSnackBar(const SnackBar(content: Text("Invalid email format")));
       return;
     }
-
     if (!passwordRegex.hasMatch(password)) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text(
               "Password must be 8+ characters with at least one letter and one number")));
       return;
     }
     // --- End of Validation ---
+
+    // Show loading indicator (optional but good UX)
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
 
     final url = Uri.parse(
       dropDownValue == "Doctor"
@@ -104,52 +106,95 @@ class _LoginScreenState extends State<LoginScreen> {
         body: json.encode(data),
       );
 
-      // Check if the widget is still mounted before using context
-      if (!mounted) return;
+      // Dismiss loading indicator
+      if (mounted) Navigator.pop(context); // Pops the loading dialog
+      if (!mounted) return; // Check mount status again after async gap
 
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
-        final message = responseData['message'];
+        final message = responseData['message'] ?? 'Login successful!';
+        final token = responseData['token'];
+
+        // --- Safely Extract userId and Name ---
+        String? userId;
+        String? userName;
+        // Adjust keys ('user', 'id', 'name') if your backend response differs
+        if (responseData['user'] != null && responseData['user'] is Map) {
+           // Use 'id' or '_id' depending on your backend
+           userId = responseData['user']['id']?.toString() ?? responseData['user']['_id']?.toString();
+           userName = responseData['user']['name']?.toString();
+        } else if (responseData['doctor'] != null && responseData['doctor'] is Map){
+            // Handle doctor login response structure if different
+             userId = responseData['doctor']['id']?.toString() ?? responseData['doctor']['_id']?.toString();
+             userName = responseData['doctor']['name']?.toString();
+        } else if (responseData['admin'] != null && responseData['admin'] is Map){
+             // Handle admin login response structure if different
+             userId = responseData['admin']['id']?.toString() ?? responseData['admin']['_id']?.toString();
+             userName = responseData['admin']['name']?.toString();
+        }
+
+
+        // Check if token and userId were actually received
+        if (token == null || token.isEmpty || userId == null || userId.isEmpty) {
+             ScaffoldMessenger.of(context).showSnackBar(
+               const SnackBar(content: Text("Login failed: Missing token or user ID in response."))
+             );
+             return;
+        }
+        // --- End Extraction ---
 
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('token', responseData['token']);
+        await prefs.setString('token', token);
         await prefs.setString('role', dropDownValue);
+        // --- SAVE USER ID ---
+        await prefs.setString('userId', userId);
+        // --- SAVE USER NAME (Optional) ---
+        if (userName != null) {
+            await prefs.setString('userName', userName); // Store name if available
+        }
+
 
         _emailController.clear();
         _passwordController.clear();
 
-        ScaffoldMessenger.of(
-          // ignore: use_build_context_synchronously
-          context,
-        ).showSnackBar(SnackBar(content: Text(message)));
-        Navigator.push(
-          // ignore: use_build_context_synchronously
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(message)));
+
+        // Use pushAndRemoveUntil to clear the stack
+        Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(
             builder: (context) => dropDownValue == "Admin"
-                ? AdminLandingScreen()
+                ? const AdminLandingScreen()
                 : dropDownValue == "Doctor"
-                    ? DoctorLndingScreen()
-                    : Landingscreen(),
+                    ? const DoctorLndingScreen()
+                    : const Landingscreen(),
           ),
+          (Route<dynamic> route) => false, // Remove all previous routes
         );
+
       } else {
-        ScaffoldMessenger.of(
-          // ignore: use_build_context_synchronously
-          context,
-        ).showSnackBar(
-            SnackBar(content: Text("Login Failed: ${response.body}")));
+        // Try to parse error message from backend
+        String errorMessage = "Login Failed";
+        try {
+            final errorData = json.decode(response.body);
+            errorMessage = errorData['message'] ?? response.body;
+        } catch (_) {
+            errorMessage = response.body; // Fallback to raw body
+        }
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(errorMessage)));
       }
     } catch (e) {
-      // Handle network errors (e.g., no internet)
+      // Dismiss loading indicator on error
+      if (mounted) Navigator.pop(context);
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        // ignore: use_build_context_synchronously
-        context,
-      ).showSnackBar(SnackBar(content: Text("Network error: ${e.toString()}")));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text("Network error: ${e.toString()}")));
     }
   }
 
+  
   Widget _buildTextField(
     String label,
     TextEditingController controller,
