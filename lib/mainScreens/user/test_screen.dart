@@ -28,7 +28,9 @@ class TestScreen extends StatefulWidget {
   State<TestScreen> createState() => _TestScreenState();
 }
 
-class _TestScreenState extends State<TestScreen> {
+// 1. ADD 'with AutomaticKeepAliveClientMixin'
+class _TestScreenState extends State<TestScreen>
+    with AutomaticKeepAliveClientMixin {
   List<QuestionModel> questions = [];
   int aqScore = 0;
   bool loading = true; // For initial survey data load
@@ -47,6 +49,10 @@ class _TestScreenState extends State<TestScreen> {
     "Disagree",
     "Strongly Disagree",
   ];
+
+  // 2. OVERRIDE 'wantKeepAlive' AND RETURN TRUE
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -72,7 +78,7 @@ class _TestScreenState extends State<TestScreen> {
   }
 
 
-  // --- Score Interpretation Helpers (Copied from previous example) ---
+  // --- Score Interpretation Helpers ---
   String _getScoreInterpretation(int score) {
     if (score <= 25) {
       return "Within the typical (non-autistic) range";
@@ -93,7 +99,7 @@ class _TestScreenState extends State<TestScreen> {
     }
   }
 
-  // --- Video Helper Functions (Integrated from example) ---
+  // --- Video Helper Functions ---
 
   Future<void> pickVideo() async {
     // Disable if already processing
@@ -130,7 +136,7 @@ class _TestScreenState extends State<TestScreen> {
 
     try {
       final request = http.MultipartRequest("POST", url)
-        ..fields["upload_preset"] = uploadPreset // Use non-null preset
+        ..fields["upload_preset"] = uploadPreset! // Use non-null preset
         ..files.add(
           await http.MultipartFile.fromPath("file", videoFile.path),
         );
@@ -180,7 +186,6 @@ class _TestScreenState extends State<TestScreen> {
 
     try {
       debugPrint("Sending URL for analysis: $videoUrl");
-      // Assuming analyzeASDVideoUrl will handle showing results/feedback
       await api_service.analyzeASDVideoUrl(videoUrl);
       debugPrint("\nEnd of analysis request trigger.");
       _showSnackBar("Video analysis request sent. Results will be available soon."); // Inform user
@@ -192,7 +197,7 @@ class _TestScreenState extends State<TestScreen> {
     }
   }
 
-  // --- Survey Data Loading and Submission (Mostly unchanged) ---
+  // --- Survey Data Loading and Submission ---
 
   Future<void> loadSurveyData() async { // Renamed from loadData
     setState(() => loading = true); // Ensure loading is true at start
@@ -212,18 +217,15 @@ class _TestScreenState extends State<TestScreen> {
       if (savedScore != null && savedScore > 0 && savedAnswers != null) {
         debugPrint("✅ Loading survey from SharedPreferences.");
         aqScore = savedScore;
-        // Ensure loop bounds are safe
         for (int i = 0; i < savedAnswers.length && i < surveyState.selectedAnswers.length; i++) {
           if (savedAnswers[i].isNotEmpty) {
-             // Use tryParse for safety
             surveyState.updateAnswer(i, int.tryParse(savedAnswers[i]));
           }
         }
       } else {
         debugPrint("ℹ️ No local survey data. Fetching from server...");
-        final serverResults = await api_service.getSurveyResults(); // Assuming this fetches for the current user
+        final serverResults = await api_service.getSurveyResults(); 
 
-        // Safely check and parse server results
         if (serverResults != null && serverResults['survey'] != null && serverResults['survey'] is Map) {
            debugPrint("✅ Found survey on server.");
            final Map<String, dynamic> surveyData = serverResults['survey'];
@@ -232,16 +234,14 @@ class _TestScreenState extends State<TestScreen> {
 
             if (serverScore != null && serverResponses != null) {
                  aqScore = serverScore;
-                 List<String> answersToSave = List.filled(loadedQuestions.length, ""); // Initialize correctly
+                 List<String> answersToSave = List.filled(loadedQuestions.length, ""); 
 
-                 // Ensure loop bounds are safe
                  for (int i = 0; i < serverResponses.length && i < loadedQuestions.length; i++) {
-                    // Check for null before calling toString()
                     if (serverResponses[i] != null && serverResponses[i].toString().isNotEmpty) {
                        final answerIndex = fixedOptions.indexOf(serverResponses[i].toString());
                        if (answerIndex != -1) {
                          surveyState.updateAnswer(i, answerIndex);
-                          answersToSave[i] = answerIndex.toString(); // Save index for consistency
+                          answersToSave[i] = answerIndex.toString(); 
                        }
                     }
                  }
@@ -254,43 +254,37 @@ class _TestScreenState extends State<TestScreen> {
 
         } else {
           debugPrint("ℹ️ No survey data on server or incorrect format.");
-          // Clear any potentially stale local data if server has none
            await prefs.remove('aqScore');
            await prefs.remove('selectedAnswers');
         }
       }
 
-      // Update UI only after potentially loading data
        if(mounted) {
          setState(() {
            questions = loadedQuestions;
-           // aqScore is already set above
          });
        }
 
     } catch (e) {
       debugPrint("❌ Failed to load survey data: $e");
        if(mounted) _showSnackBar("Failed to load survey data: $e", isError: true);
-       // Handle load failure gracefully
         if(mounted) {
             setState(() {
-               questions = []; // Ensure questions list is empty on error
+               questions = []; 
                aqScore = 0;
             });
         }
     } finally {
-        if(mounted) setState(() => loading = false); // Stop loading indicator
+        if(mounted) setState(() => loading = false); 
     }
   }
 
 
- Future<void> submitAnswers() async { // Removed context parameter
-    // Prevent submission if already submitted or processing video
+ Future<void> submitAnswers() async { 
     if (aqScore > 0 || _isUploading || _isAnalyzing) return;
 
     final surveyState = context.read<SurveyState>();
 
-     // Check if all questions are answered
      if (surveyState.selectedAnswers.contains(null)) {
         _showSnackBar("Please answer all questions before submitting.", isError: true);
         return;
@@ -303,26 +297,23 @@ class _TestScreenState extends State<TestScreen> {
 
     Map<String, dynamic> payload = {"surveyResponse": responses};
     debugPrint("Survey Payload: ${jsonEncode(payload)}");
-     _showSnackBar("Submitting survey..."); // Feedback
+     _showSnackBar("Submitting survey..."); 
 
     try {
-        final result = await api_service.submitSurvey(payload); // Assuming this submits for the current user
+        final result = await api_service.submitSurvey(payload); 
         debugPrint("Submit API response: $result");
 
-        if (!mounted) return; // Check mount status after async call
+        if (!mounted) return; 
 
-        // Safely check score and message
         if (result["score"] != null && result["score"] is int) {
            final receivedScore = result["score"] as int;
            setState(() {
              aqScore = receivedScore;
-             showScoreAnimation = true; // Trigger animation if needed
+             showScoreAnimation = true; 
            });
 
-           // Save score and answers locally
            final prefs = await SharedPreferences.getInstance();
            await prefs.setInt('aqScore', aqScore);
-           // Save indexes for consistency with loading logic
            final answersToSave = surveyState.selectedAnswers
                .map((e) => e?.toString() ?? "")
                .toList();
@@ -343,14 +334,15 @@ class _TestScreenState extends State<TestScreen> {
 
   double getProgress(List<int?> selectedAnswers) {
     int answered = selectedAnswers.where((e) => e != null).length;
-    // Prevent division by zero if questions list is empty
     return questions.isNotEmpty ? answered / questions.length : 0.0;
   }
 
   // --- Build Method ---
   @override
   Widget build(BuildContext context) {
-    // Show loading indicator only during initial data fetch
+    // 3. CALL super.build(context)
+    super.build(context);
+
     if (loading) {
       return const Scaffold(
           backgroundColor: Color(0xFFFFF5E3), // Match theme
@@ -358,28 +350,26 @@ class _TestScreenState extends State<TestScreen> {
       );
     }
 
-    // Use Consumer for SurveyState updates within the build method
     return Consumer<SurveyState>(
       builder: (context, surveyState, _) {
-        // Calculate progress here using the latest state
         final double currentProgress = getProgress(surveyState.selectedAnswers);
         final bool canSubmitSurvey = !surveyState.selectedAnswers.contains(null);
 
         return Scaffold(
           backgroundColor: const Color(0xFFFFF5E3), // Match other screens
-          appBar: AppBar( // Add AppBar for context
+          appBar: AppBar( 
              title: const Text(
                 "Autism Screening",
                  style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: Colors.orange, // Keep theme color
+                    color: Colors.orange, 
                     fontFamily: "Merriweather",
                 ),
              ),
-             backgroundColor: const Color(0xFFFFF2E0), // Keep theme color
+             backgroundColor: const Color(0xFFFFF2E0), 
              elevation: 1,
              centerTitle: true,
-             automaticallyImplyLeading: false, // Optional: remove back button if needed
+             automaticallyImplyLeading: false, 
           ),
           body: SingleChildScrollView(
             padding: const EdgeInsets.all(16),
@@ -388,13 +378,13 @@ class _TestScreenState extends State<TestScreen> {
               children: [
                 // --- Score Display Card (Shows if score exists) ---
                 if (aqScore > 0)
-                  ZoomIn( // Animate score card appearance
+                  ZoomIn( 
                     duration: const Duration(milliseconds: 500),
                     child: Card(
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(15), // Consistent radius
+                        borderRadius: BorderRadius.circular(15), 
                       ),
-                      elevation: 4, // Subtle shadow
+                      elevation: 4, 
                       margin: const EdgeInsets.symmetric(vertical: 8.0),
                       child: Padding(
                         padding: const EdgeInsets.all(20),
@@ -403,20 +393,20 @@ class _TestScreenState extends State<TestScreen> {
                             const Text(
                               "Your AQ Score",
                               style: TextStyle(
-                                fontSize: 22, // Adjusted size
+                                fontSize: 22, 
                                 fontWeight: FontWeight.bold,
                                 color: Colors.black87,
                               ),
                             ),
                             const SizedBox(height: 15),
                             CircularPercentIndicator(
-                              radius: 65.0, // Adjusted size
+                              radius: 65.0, 
                               lineWidth: 10.0,
-                              percent: (aqScore / 50).clamp(0.0, 1.0), // Max score is 50
+                              percent: (aqScore / 50).clamp(0.0, 1.0), 
                               center: Text(
                                 "$aqScore",
                                 style: TextStyle(
-                                  fontSize: 36, // Adjusted size
+                                  fontSize: 36, 
                                   fontWeight: FontWeight.bold,
                                   color: _getScoreColor(aqScore),
                                 ),
@@ -433,7 +423,7 @@ class _TestScreenState extends State<TestScreen> {
                                child: Text(
                                 _getScoreInterpretation(aqScore),
                                 style: TextStyle(
-                                  fontSize: 16, // Adjusted size
+                                  fontSize: 16, 
                                   fontWeight: FontWeight.w500,
                                   color: _getScoreColor(aqScore),
                                 ),
@@ -445,21 +435,20 @@ class _TestScreenState extends State<TestScreen> {
                               icon: const Icon(Icons.refresh, size: 20),
                               style: ElevatedButton.styleFrom(
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12), // Consistent radius
+                                  borderRadius: BorderRadius.circular(12), 
                                 ),
                                 backgroundColor: Colors.orange,
-                                foregroundColor: Colors.white, // Text/Icon color
+                                foregroundColor: Colors.white, 
                                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                               ),
                               onPressed: () async {
-                                 // Clear local state and SharedPreferences
                                  final prefs = await SharedPreferences.getInstance();
                                  await prefs.remove('aqScore');
                                  await prefs.remove('selectedAnswers');
                                  surveyState.reset();
                                  setState(() {
                                    aqScore = 0;
-                                   showScoreAnimation = false; // Reset animation flag
+                                   showScoreAnimation = false; 
                                  });
                                   _showSnackBar("Survey reset.");
                               },
@@ -477,16 +466,15 @@ class _TestScreenState extends State<TestScreen> {
                   )
                 // --- Survey Questions Section (Shows if score is 0) ---
                 else if (questions.isNotEmpty) ...[
-                  FadeInDown( // Animate progress header
+                  FadeInDown( 
                      duration: const Duration(milliseconds: 400),
                     child: ProgressHeader(
                       currentIndex: surveyState.currentIndex,
                       totalQuestions: questions.length,
-                      progress: currentProgress, // Use calculated progress
+                      progress: currentProgress, 
                     ),
                   ),
                   const SizedBox(height: 20),
-                  // AnimatedSwitcher for smooth question transitions
                   AnimatedSwitcher(
                     duration: const Duration(milliseconds: 300),
                      transitionBuilder: (child, animation) => FadeTransition(
@@ -494,7 +482,6 @@ class _TestScreenState extends State<TestScreen> {
                         child: SizeTransition(sizeFactor: animation, child: child)
                      ),
                     child: QuestionCard(
-                      // Use ValueKey to ensure switcher recognizes changes
                       key: ValueKey('question_${surveyState.currentIndex}'),
                       question: questions[surveyState.currentIndex],
                       options: fixedOptions,
@@ -505,16 +492,16 @@ class _TestScreenState extends State<TestScreen> {
                       },
                     ),
                   ),
-                  const SizedBox(height: 20), // Spacing before buttons
+                  const SizedBox(height: 20), 
                   NavigationButtons(
                     isFirstQuestion: surveyState.currentIndex == 0,
                     isLastQuestion: surveyState.currentIndex == questions.length - 1,
                     onNext: surveyState.nextQuestion,
                     onBack: surveyState.previousQuestion,
-                    onSubmit: submitAnswers, // Call submit function
-                    canSubmit: canSubmitSurvey, // Enable based on completion
+                    onSubmit: submitAnswers, 
+                    canSubmit: canSubmitSurvey, 
                   ),
-                ] else if (!loading) // Show if questions failed to load and not loading
+                ] else if (!loading) 
                     Center(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 40.0),
@@ -532,7 +519,7 @@ class _TestScreenState extends State<TestScreen> {
                               ElevatedButton.icon(
                                   icon: const Icon(Icons.refresh),
                                   label: const Text("Retry"),
-                                  onPressed: loadSurveyData, // Retry loading survey
+                                  onPressed: loadSurveyData, 
                                   style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
                               )
                            ],
@@ -543,14 +530,14 @@ class _TestScreenState extends State<TestScreen> {
 
                 // --- Video Section (Always visible below survey/score) ---
                 const Divider(thickness: 1.5, height: 40, indent: 20, endIndent: 20),
-                FadeInUp( // Animate video section appearance
+                FadeInUp( 
                    duration: const Duration(milliseconds: 500),
                   child: Column(
                     children: [
                       const Text(
-                        "Optional: Upload Video for Analysis", // Clarify it's optional
+                        "Optional: Upload Video for Analysis", 
                         style: TextStyle(
-                          fontSize: 20, // Adjusted size
+                          fontSize: 20, 
                           fontWeight: FontWeight.bold,
                            color: Colors.black87,
                         ),
@@ -558,7 +545,7 @@ class _TestScreenState extends State<TestScreen> {
                       ),
                        const SizedBox(height: 5),
                         Text(
-                          "(Recommended for ages 3-12)", // Add context
+                          "(Recommended for ages 3-12)", 
                           style: TextStyle(
                            fontSize: 14,
                            color: Colors.grey.shade700,
@@ -573,7 +560,7 @@ class _TestScreenState extends State<TestScreen> {
                             "Selected: ${selectedVideo!.path.split('/').last}",
                             style: const TextStyle(fontWeight: FontWeight.w500),
                              textAlign: TextAlign.center,
-                              overflow: TextOverflow.ellipsis, // Prevent long names overflowing
+                              overflow: TextOverflow.ellipsis, 
                           ),
                         ),
                       Row(
@@ -581,11 +568,11 @@ class _TestScreenState extends State<TestScreen> {
                         children: [
                           ElevatedButton.icon(
                             onPressed: (_isUploading || _isAnalyzing) ? null : pickVideo,
-                            icon: const Icon(Icons.video_library_outlined, size: 20), // Changed icon
+                            icon: const Icon(Icons.video_library_outlined, size: 20), 
                             label: const Text("Choose Video"),
                             style: ElevatedButton.styleFrom(
                                 foregroundColor: Colors.white,
-                                backgroundColor: Colors.orange, // Theme color
+                                backgroundColor: Colors.orange, 
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))
                             ),
                           ),
@@ -593,9 +580,8 @@ class _TestScreenState extends State<TestScreen> {
                             onPressed: (selectedVideo == null || _isUploading || _isAnalyzing) ? null : analyzeVideo,
                              style: ElevatedButton.styleFrom(
                                 foregroundColor: Colors.white,
-                                backgroundColor: Colors.deepOrange, // Contrasting color
+                                backgroundColor: Colors.deepOrange, 
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                // Disable feedback if button is disabled
                                 enableFeedback: !(selectedVideo == null || _isUploading || _isAnalyzing)
                             ),
                             icon: _isUploading || _isAnalyzing
@@ -615,13 +601,13 @@ class _TestScreenState extends State<TestScreen> {
                             Text(
                               "Video Preview",
                               style: TextStyle(
-                                fontSize: 18, // Adjusted size
+                                fontSize: 18, 
                                 fontWeight: FontWeight.bold,
                                 color: Colors.deepOrange.shade800,
                               ),
                             ),
                             const SizedBox(height: 10),
-                             ClipRRect( // Add rounded corners to preview
+                             ClipRRect( 
                                 borderRadius: BorderRadius.circular(12),
                                 child: AspectRatio(
                                   aspectRatio: _videoController!.value.aspectRatio,
@@ -631,9 +617,9 @@ class _TestScreenState extends State<TestScreen> {
                             IconButton(
                               icon: Icon(
                                 _videoController!.value.isPlaying
-                                    ? Icons.pause_circle_filled_outlined // Use outlined icons
+                                    ? Icons.pause_circle_filled_outlined 
                                     : Icons.play_circle_fill_outlined,
-                                size: 45, // Adjusted size
+                                size: 45, 
                                 color: Colors.deepOrange.shade700,
                               ),
                               onPressed: () {
@@ -646,7 +632,7 @@ class _TestScreenState extends State<TestScreen> {
                             ),
                           ],
                         )
-                       else if (selectedVideo != null) // Show loading indicator while video initializes
+                       else if (selectedVideo != null) 
                          const Center(child: Padding(
                            padding: EdgeInsets.all(12.0),
                            child: CircularProgressIndicator(color: Colors.orange),
