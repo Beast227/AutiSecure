@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:autisecure/mainScreens/user/subScreen/appointment_page.dart'; // Ensure path is correct
+// import 'package:autisecure/mainScreens/user/subScreen/appointment_page.dart'; // No longer needed
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 // Ensure correct paths
@@ -303,18 +303,15 @@ class _DocDocListScreenState extends State<DocDocListScreen> {
           final doctor = _doctorsList[index];
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 6.0), // Spacing between cards
-            child: DoctorCard( // Use your existing DoctorCard widget
+            // --- MODIFICATION HERE ---
+            child: DoctorCard(
               doctor: doctor,
-              onBookPressed: () {
-                // Navigate to booking screen, passing doctor info
-                 Navigator.push(
-                     context,
-                     MaterialPageRoute(
-                         builder: (context) => AppointmentPage(doctor: doctor),
-                    ),
-                 );
-              },
+              // Pass null or an empty function to onBookPressed,
+              // or modify DoctorCard to hide the button if onBookPressed is null.
+              // Assuming DoctorCard can handle a null callback:
+              onBookPressed: null,
             ),
+            // --- END MODIFICATION ---
           );
         },
            ),
