@@ -98,7 +98,10 @@ class _LandingscreenState extends State<Landingscreen> {
         backgroundColor: Colors.orange,
         title: buildHeader(),
       ),
-      body: pages[globals.selectedIndex],
+      body: IndexedStack(        // <--- SOLUTION: Use IndexedStack
+      index: globals.selectedIndex,   // This shows the correct page
+      children: pages,         // This keeps ALL pages in memory
+    ),
       bottomNavigationBar: buildBottomNavBar(),
     );
   }
