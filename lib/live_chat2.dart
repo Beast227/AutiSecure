@@ -39,6 +39,7 @@ class _LiveChat2State extends State<LiveChat2>
   // Cache Keys
   static const String _pendingCacheKey = 'pendingAppointmentsCache';
   static const String _approvedCacheKey = 'approvedAppointmentsCache';
+  static const String _conversationsCacheKey = 'conversationsCache';
   static const String _userIdKey = 'userId';
   static const String _roleKey = 'role'; // Keep for logout consistency
   static const String _tokenKey = 'token';
@@ -98,24 +99,63 @@ class _LiveChat2State extends State<LiveChat2>
 
   // --- Data Loading Functions ---
 
-  Future<void> _loadConversations() async {
+  Future<void> _loadConversations({bool forceRefresh = false}) async {
+    final prefs = await SharedPreferences.getInstance();
+    String? cachedDataString;
+
+    // 1. Load from cache first
+    if (!forceRefresh) {
+      cachedDataString = prefs.getString(_conversationsCacheKey);
+      if (cachedDataString != null) {
+        try {
+          final List<dynamic> cachedDynamicList = json.decode(cachedDataString);
+          if (mounted) {
+            setState(() {
+              conversations = cachedDynamicList.cast<Map<String, dynamic>>();
+              debugPrint("✅ Loaded conversations from cache.");
+            });
+          }
+        } catch (e) {
+          debugPrint("⚠️ Error decoding conversations cache: $e");
+          await prefs.remove(_conversationsCacheKey); // Clear corrupted cache
+        }
+      }
+    }
+
+    // 2. Fetch from network
     try {
       // Hardcode 'doctor' role for fetching conversations
-      final data = await ApiService.fetchConversations(role: 'doctor');
-      if (mounted) {
+      final List<Map<String, dynamic>> fetchedConversations =
+          await ApiService.fetchConversations(role: 'doctor');
+
+      if (!mounted) return;
+
+      final String fetchedDataString = json.encode(fetchedConversations);
+
+      // 3. Compare and Update Cache/State if necessary
+      if (fetchedDataString != cachedDataString) {
+        debugPrint("🔄 Updated conversations cache.");
+        await prefs.setString(_conversationsCacheKey, fetchedDataString);
         setState(() {
-          conversations = data;
+          conversations = fetchedConversations;
         });
+        // Only show snackbar if it's an update, not the very first load
+        if (cachedDataString != null) {
+          _showSnackBar("Conversations updated.");
+        }
+      } else {
+        debugPrint("ℹ️ Conversations are up-to-date.");
       }
     } catch (e) {
       debugPrint("❌ Error loading conversations: $e");
-       if (mounted) _showSnackBar("Could not load conversations.", isError: true);
+      // Only show error if there was no cache to load initially
+      if (cachedDataString == null) {
+        if (mounted) _showSnackBar("Could not load conversations.", isError: true);
+      }
     }
   }
 
   Future<void> _loadAppointments({bool forceRefresh = false}) async {
-    // ... (Keep the existing implementation for caching and fetching appointments)
-    // This function doesn't depend on the userRole variable directly
      final prefs = await SharedPreferences.getInstance();
 
     // 1. Load from cache first (unless forced refresh)
@@ -208,7 +248,6 @@ class _LiveChat2State extends State<LiveChat2>
   }
 
   Future<void> _loadMessages() async {
-    // ... (Keep existing implementation)
      if (selectedConversationId == null) return;
     try {
       final data = await ApiService.fetchMessages(selectedConversationId!);
@@ -224,7 +263,6 @@ class _LiveChat2State extends State<LiveChat2>
   // --- Chat Actions ---
 
   Future<void> _openChat(Map conversation) async {
-    // ... (Keep existing implementation - relies on userId)
      if (userId == null) {
         _showSnackBar("User ID not found. Cannot open chat.", isError: true);
         return;
@@ -250,7 +288,6 @@ class _LiveChat2State extends State<LiveChat2>
 
 
   Future<void> _sendMessage() async {
-    // ... (Keep existing implementation - relies on userId)
      final text = messageController.text.trim();
     if (text.isEmpty || selectedConversationId == null || userId == null) return;
 
@@ -258,7 +295,8 @@ class _LiveChat2State extends State<LiveChat2>
     final tempMessage = {
        "message": text,
        "senderId": userId!,
-       "timestamp": DateTime.now().toIso8601String(),
+       // --- CORRECTED TYPO ---
+       "timestamp": DateTime.now().toIso8601String(), // Was toIso_8601String
     };
     if (mounted) {
        setState(() {
@@ -296,13 +334,13 @@ class _LiveChat2State extends State<LiveChat2>
   }
 
   Future<void> _logOut() async {
-    // ... (Keep existing implementation - clears role and token)
      final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenKey);
     await prefs.remove(_roleKey);
-    await prefs.remove(_userIdKey); // Also clear user ID
-    await prefs.remove(_pendingCacheKey); // Clear appointment cache
+    await prefs.remove(_userIdKey); 
+    await prefs.remove(_pendingCacheKey); 
     await prefs.remove(_approvedCacheKey);
+    await prefs.remove(_conversationsCacheKey); 
     if (!mounted) return;
     Navigator.pushAndRemoveUntil(
       context,
@@ -314,7 +352,6 @@ class _LiveChat2State extends State<LiveChat2>
   // --- Appointments Modal ---
 
   void _showAppointmentsSheet() {
-    // ... (Keep existing implementation)
      showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -329,7 +366,6 @@ class _LiveChat2State extends State<LiveChat2>
 
             // --- Modal Build Helpers ---
              Widget buildCard(Map<String, dynamic> req, { bool approved = false }) {
-              // ... Card building logic ...
               final dateStr = req['date'] ?? req['appointmentStartDate'];
               final date = DateTime.tryParse(dateStr ?? '');
               final formattedDate = date != null ? DateFormat('E, MMM d, yyyy').format(date) : 'Unknown Date';
@@ -367,7 +403,6 @@ class _LiveChat2State extends State<LiveChat2>
                      ? Icon(Icons.check_circle_outline, color: Colors.green.shade600, size: 28)
                      : Icon(Icons.pending_actions_outlined, color: Colors.orange.shade700, size: 28),
                   onTap: approved || appointmentId.isEmpty ? null : () {
-                     // Show approval form and pass a callback to refresh this modal's state
                      _showApprovalForm(req, () async {
                        await _loadAppointments(forceRefresh: true); // Force refresh lists
                         if (mounted) setModalState(() {}); // Rebuild modal UI
@@ -378,7 +413,6 @@ class _LiveChat2State extends State<LiveChat2>
             }
 
             Widget buildSection(String title, List<Map<String, dynamic>> list, { bool approved = false }) {
-             // ... Section building logic ...
              return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -413,20 +447,19 @@ class _LiveChat2State extends State<LiveChat2>
             }
              // --- End Modal Build Helpers ---
 
-            // Use DraggableScrollableSheet for flexible height
             return DraggableScrollableSheet(
-              expand: false, // Don't expand to full screen initially
-              initialChildSize: 0.6, // Start at 60% height
-              minChildSize: 0.3,    // Allow dragging down to 30%
-              maxChildSize: 0.9,   // Allow dragging up to 90%
+              expand: false, 
+              initialChildSize: 0.6, 
+              minChildSize: 0.3,    
+              maxChildSize: 0.9,   
               builder: (_, controller) {
-                return Container( // Container for background color and padding
+                return Container( 
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     decoration: const BoxDecoration(
-                       color: Colors.white, // Sheet background color
+                       color: Colors.white, 
                        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
                     ),
-                    child: Column( // Use Column for handle + ListView
+                    child: Column( 
                        children: [
                           // Draggable Handle
                           Center(
@@ -442,12 +475,11 @@ class _LiveChat2State extends State<LiveChat2>
                           // Scrollable Content
                           Expanded(
                             child: ListView(
-                                controller: controller, // Attach scroll controller
+                                controller: controller, 
                                 children: [
-                                   // Build sections using current state lists
                                    buildSection("Pending Requests", pendingAppointments),
                                    buildSection("Approved Appointments", approvedAppointments, approved: true),
-                                   const SizedBox(height: 20), // Padding at bottom inside scroll area
+                                   const SizedBox(height: 20), 
                                 ],
                              ),
                           ),
@@ -462,21 +494,11 @@ class _LiveChat2State extends State<LiveChat2>
     );
   }
 
- // --- Approval Form Modal and Helpers ---
- // (These functions remain the same - _showApprovalForm, _buildPickerButton)
- // Ensure they use the updated _showSnackBar defined in this class.
-
  Future<void> _showApprovalForm(Map<String, dynamic> request, VoidCallback refreshParentModal) async {
-    // ... (Keep the implementation from the previous code)
-    // Make sure calls inside this function like showOverlayToast use _showSnackBar
-    // Example call inside _showApprovalForm after successful rejection:
-    // _showSnackBar("Appointment Rejected", isError: false);
-    // Replace all showOverlayToast calls with _showSnackBar
-
      DateTime? date;
     TimeOfDay? start;
     TimeOfDay? end;
-    bool isProcessing = false; // Loading state for this specific modal
+    bool isProcessing = false; 
 
      final String appointmentId = request['appointmentId']?.toString() ?? request['_id']?.toString() ?? '';
      if (appointmentId.isEmpty) {
@@ -487,27 +509,26 @@ class _LiveChat2State extends State<LiveChat2>
 
     await showModalBottomSheet(
       context: context,
-      isScrollControlled: true, // Allows sheet to take more height if needed
+      isScrollControlled: true, 
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
       ),
       builder: (context) {
-        return StatefulBuilder( // Use StatefulBuilder to manage state within this modal
+        return StatefulBuilder( 
           builder: (context, setApprovalModalState) {
             final safeName = request['patient']?['name'] ?? 'Unknown Patient';
             final issue = (request['description']?.toString().trim().isNotEmpty ?? false)
                 ? request['description'] : 'No description provided';
 
             return Padding(
-              // Adjust padding to avoid keyboard overlap
               padding: EdgeInsets.only(
                 bottom: MediaQuery.of(context).viewInsets.bottom,
                 left: 20, right: 20, top: 20,
               ),
-              child: SingleChildScrollView( // Ensure content is scrollable if keyboard appears
+              child: SingleChildScrollView( 
                 child: Column(
-                  mainAxisSize: MainAxisSize.min, // Take only needed height
+                  mainAxisSize: MainAxisSize.min, 
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     // Draggable Handle
@@ -544,8 +565,8 @@ class _LiveChat2State extends State<LiveChat2>
                       onPressed: () async {
                         final d = await showDatePicker(
                           context: context,
-                          initialDate: date ?? DateTime.now(), // Use selected or current
-                          firstDate: DateTime.now(), // Can't schedule in past
+                          initialDate: date ?? DateTime.now(), 
+                          firstDate: DateTime.now(), 
                           lastDate: DateTime(2100),
                         );
                         if (d != null) setApprovalModalState(() => date = d);
@@ -574,14 +595,13 @@ class _LiveChat2State extends State<LiveChat2>
                           context: context,
                           initialTime: end ?? TimeOfDay.now(),
                         );
-                        // Basic validation: end time must be after start time
                         if (t != null) {
                            if(start != null) {
                               final startMinutes = start!.hour * 60 + start!.minute;
                               final endMinutes = t.hour * 60 + t.minute;
                               if (endMinutes <= startMinutes) {
                                   _showSnackBar("End time must be after start time.", isError: true);
-                                  return; // Don't set invalid time
+                                  return; 
                               }
                            }
                            setApprovalModalState(() => end = t);
@@ -605,9 +625,9 @@ class _LiveChat2State extends State<LiveChat2>
                                 setApprovalModalState(() => isProcessing = true);
                                 try {
                                     await ApiService.rejectAppointment(appointmentId);
-                                    _showSnackBar("Appointment Rejected", isError: false); // Use general snackbar
-                                    refreshParentModal(); // Refresh the list in the background sheet
-                                    if(mounted) Navigator.pop(context); // Close this approval form
+                                    _showSnackBar("Appointment Rejected", isError: false); 
+                                    refreshParentModal(); 
+                                    if(mounted) Navigator.pop(context); 
                                 } catch (e) {
                                      _showSnackBar("Failed to reject: $e", isError: true);
                                 } finally {
@@ -652,8 +672,8 @@ class _LiveChat2State extends State<LiveChat2>
 
                                     if(success) {
                                       _showSnackBar("Appointment approved successfully");
-                                      refreshParentModal(); // Refresh background sheet
-                                      if(mounted) Navigator.pop(context); // Close approval form
+                                      refreshParentModal(); 
+                                      if(mounted) Navigator.pop(context); 
                                     } else {
                                         _showSnackBar("Failed to approve appointment.", isError: true);
                                     }
@@ -692,44 +712,41 @@ class _LiveChat2State extends State<LiveChat2>
     required String label,
     required VoidCallback onPressed,
   }) {
-   // ... (Keep the implementation from the previous code)
     return OutlinedButton.icon(
       onPressed: onPressed,
       icon: Icon(icon, color: Colors.orange.shade700, size: 20),
       label: Text(label, style: TextStyle(color: Colors.orange.shade900, fontSize: 16)),
       style: OutlinedButton.styleFrom(
-        foregroundColor: Colors.orange.shade900, // Text color when pressed
-        side: BorderSide(color: Colors.orange.shade300, width: 1), // Lighter border
+        foregroundColor: Colors.orange.shade900, 
+        side: BorderSide(color: Colors.orange.shade300, width: 1), 
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)), // Slightly less rounded
-        alignment: Alignment.centerLeft, // Align icon and text left
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)), 
+        alignment: Alignment.centerLeft, 
       ),
     );
   }
 
  // --- Main Chat Window UI ---
   Widget _buildChatWindow() {
-    // ... (Keep the implementation from the previous code)
     return Column(
       children: [
         // Chat Header
         Container(
-          color: Colors.orange.shade700, // Theme color
-          padding: const EdgeInsets.only(top: 8.0, bottom: 8.0, left: 8.0, right: 16.0), // Adjust padding
+          color: Colors.orange.shade700, 
+          padding: const EdgeInsets.only(top: 8.0, bottom: 8.0, left: 8.0, right: 16.0), 
           child: Row(
             children: [
               IconButton(
-                onPressed: () => setState(() => isChatOpen = false), // Go back to list
+                onPressed: () => setState(() => isChatOpen = false), 
                 icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
                  tooltip: "Back to Chats",
               ),
                const SizedBox(width: 8),
-              // Could add CircleAvatar here if you fetch participant image URL
-              Expanded( // Ensure name doesn't overflow
+              Expanded( 
                 child: Text(
                   selectedUser,
                   style: const TextStyle(
-                    fontSize: 18, // Slightly smaller
+                    fontSize: 18, 
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
@@ -745,32 +762,31 @@ class _LiveChat2State extends State<LiveChat2>
           child: messages.isEmpty
              ? const Center(child: Text("No messages yet. Start chatting!", style: TextStyle(color: Colors.grey)))
              : ListView.builder(
-                  reverse: true, // Show latest messages at the bottom
+                  reverse: true, 
                   itemCount: messages.length,
                   padding: const EdgeInsets.all(12),
                   itemBuilder: (context, index) {
                     final msg = messages[index];
-                    // Basic validation
                     if (msg == null || msg is! Map || msg["message"] == null || msg["senderId"] == null) {
-                       return const SizedBox.shrink(); // Skip invalid messages
+                       return const SizedBox.shrink(); 
                     }
                     final isMe = msg["senderId"] == userId;
 
                     return Align(
                       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
                       child: Container(
-                         constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75), // Limit bubble width
-                        margin: const EdgeInsets.symmetric(vertical: 5), // Increased vertical margin
-                        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14), // Adjusted padding
+                         constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75), 
+                        margin: const EdgeInsets.symmetric(vertical: 5), 
+                        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14), 
                         decoration: BoxDecoration(
-                          color: isMe ? Colors.orange.shade200 : Colors.grey.shade200, // Differentiate bubbles
-                          borderRadius: BorderRadius.only( // Chat bubble shape
+                          color: isMe ? Colors.orange.shade200 : Colors.grey.shade200, 
+                          borderRadius: BorderRadius.only( 
                                topLeft: Radius.circular(16),
                                topRight: Radius.circular(16),
                                bottomLeft: Radius.circular(isMe ? 16 : 0),
                                bottomRight: Radius.circular(isMe ? 0 : 16),
                           ),
-                           boxShadow: [ // Add subtle shadow
+                           boxShadow: [ 
                               BoxShadow(
                                  color: Colors.black.withOpacity(0.05),
                                  blurRadius: 3,
@@ -779,7 +795,7 @@ class _LiveChat2State extends State<LiveChat2>
                            ]
                         ),
                         child: Text(
-                          msg["message"].toString(), // Ensure it's a string
+                          msg["message"].toString(), 
                           style: const TextStyle(fontSize: 16, color: Colors.black87),
                         ),
                       ),
@@ -798,7 +814,7 @@ class _LiveChat2State extends State<LiveChat2>
                     color: Colors.grey.withOpacity(0.2),
                     spreadRadius: 1,
                     blurRadius: 5,
-                    offset: const Offset(0, -2), // Shadow upwards
+                    offset: const Offset(0, -2), 
                  )
              ]
           ),
@@ -811,23 +827,23 @@ class _LiveChat2State extends State<LiveChat2>
                     hintText: "Type your message...",
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(30),
-                      borderSide: BorderSide(color: Colors.grey.shade300), // Lighter border
+                      borderSide: BorderSide(color: Colors.grey.shade300), 
                     ),
                      focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(30),
-                      borderSide: BorderSide(color: Colors.orange.shade400, width: 1.5), // Highlight when focused
+                      borderSide: BorderSide(color: Colors.orange.shade400, width: 1.5), 
                     ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10), // Adjust padding
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10), 
                     filled: true,
-                    fillColor: Colors.grey.shade100, // Slight background color
+                    fillColor: Colors.grey.shade100, 
                   ),
-                   onSubmitted: (_) => _sendMessage(), // Send on keyboard done
-                   textInputAction: TextInputAction.send, // Show send button on keyboard
+                   onSubmitted: (_) => _sendMessage(), 
+                   textInputAction: TextInputAction.send, 
                 ),
               ),
               const SizedBox(width: 8),
               IconButton(
-                icon: Icon(Icons.send_rounded, color: Colors.orange.shade700, size: 28), // Themed send icon
+                icon: Icon(Icons.send_rounded, color: Colors.orange.shade700, size: 28), 
                 onPressed: _sendMessage,
                  tooltip: "Send Message",
               ),
@@ -854,17 +870,17 @@ class _LiveChat2State extends State<LiveChat2>
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
-                Icons.chat_bubble_outline_rounded, // Use rounded icon
-                size: 60, // Slightly smaller
+                Icons.chat_bubble_outline_rounded, 
+                size: 60, 
                 color: Colors.orange.shade300,
               ),
               const SizedBox(height: 16),
               const Text(
                 "No Conversations Yet",
                 style: TextStyle(
-                  fontSize: 20, // Slightly smaller
+                  fontSize: 20, 
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF5A2500), // Theme color
+                  color: Color(0xFF5A2500), 
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -880,7 +896,7 @@ class _LiveChat2State extends State<LiveChat2>
                IconButton(
                  icon: const Icon(Icons.refresh, size: 30, color: Colors.orange),
                  tooltip: "Refresh Conversations",
-                 onPressed: _loadConversations, // Call load function directly
+                 onPressed: () => _loadConversations(forceRefresh: true), // Force refresh
                ),
             ],
           ),
@@ -889,17 +905,17 @@ class _LiveChat2State extends State<LiveChat2>
     }
 
     // Display the list of conversations
-    return RefreshIndicator( // Add pull-to-refresh for the chat list
-       onRefresh: _loadConversations,
+    return RefreshIndicator( 
+       onRefresh: () => _loadConversations(forceRefresh: true), // Force refresh
        color: Colors.orange,
        child: ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), // Adjusted padding
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), 
         itemCount: conversations.length,
         itemBuilder: (context, index) {
           final convo = conversations[index];
           // Basic validation for conversation structure
           if (convo == null || convo is! Map || convo["participants"] == null || convo["participants"] is! List || (convo["participants"] as List).isEmpty) {
-              return const SizedBox.shrink(); // Skip invalid item
+              return const SizedBox.shrink(); 
           }
 
           final List participants = convo["participants"];
@@ -920,30 +936,30 @@ class _LiveChat2State extends State<LiveChat2>
 
           return Card(
             color: Colors.white,
-            elevation: 2, // Slightly less elevation
-            margin: const EdgeInsets.symmetric(vertical: 6), // Adjusted margin
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), // Consistent radius
+            elevation: 2, 
+            margin: const EdgeInsets.symmetric(vertical: 6), 
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), 
             child: ListTile(
               leading: CircleAvatar(
-                radius: 25, // Slightly smaller
-                backgroundColor: Colors.orange.shade100, // Lighter background
+                radius: 25, 
+                backgroundColor: Colors.orange.shade100, 
                 child: Text(
                   initial,
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: Colors.orange.shade800, // Darker text
+                    color: Colors.orange.shade800, 
                   ),
                 ),
               ),
               title: Text(
                 otherUserName,
-                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600), // Adjusted size
+                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600), 
               ),
-              subtitle: Text(otherUserRole, style: TextStyle(color: Colors.grey.shade600)), // Slightly darker grey
-              trailing: Icon(Icons.arrow_forward_ios_rounded, color: Colors.orange.shade400, size: 18), // Smaller, themed icon
+              subtitle: Text(otherUserRole, style: TextStyle(color: Colors.grey.shade600)), 
+              trailing: Icon(Icons.arrow_forward_ios_rounded, color: Colors.orange.shade400, size: 18), 
               onTap: () => _openChat(convo),
-               contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16), // Adjust padding
+               contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16), 
             ),
           );
         },
@@ -957,28 +973,28 @@ class _LiveChat2State extends State<LiveChat2>
     super.build(context); // Keep state alive
     return Scaffold(
       backgroundColor: Colors.orange.shade50, // Consistent background
-      floatingActionButton: badges.Badge( // Wrap FAB with Badge
-              showBadge: _pendingCount > 0, // Show only if count > 0
-              position: badges.BadgePosition.topEnd(top: -4, end: -4), // Adjust position
+      floatingActionButton: badges.Badge( 
+              showBadge: _pendingCount > 0, 
+              position: badges.BadgePosition.topEnd(top: -4, end: -4), 
               badgeContent: Text(
                 _pendingCount.toString(),
                 style: const TextStyle(color: Colors.white, fontSize: 12),
               ),
               badgeStyle: const badges.BadgeStyle(
-                 badgeColor: Colors.red, // Standard notification color
+                 badgeColor: Colors.red, 
               ),
               child: FloatingActionButton(
                 backgroundColor: Colors.orange.shade700,
                 onPressed: _showAppointmentsSheet,
-                tooltip: "View Appointments", // Add tooltip
-                child: const Icon(Icons.calendar_month_outlined, size: 28, color: Colors.white), // Changed icon
+                tooltip: "View Appointments", 
+                child: const Icon(Icons.calendar_month_outlined, size: 28, color: Colors.white), 
               ),
             ),
 
       body: SafeArea(
-        child: AnimatedSwitcher( // Smooth transition between list and chat
+        child: AnimatedSwitcher( 
           duration: const Duration(milliseconds: 300),
-          transitionBuilder: (child, animation) { // Fade transition
+          transitionBuilder: (child, animation) { 
               return FadeTransition(opacity: animation, child: child);
           },
           // Conditionally show loading, chat window, or chat list
@@ -986,10 +1002,9 @@ class _LiveChat2State extends State<LiveChat2>
               ? const Center(child: CircularProgressIndicator(color: Colors.orange)) // Show loading initially
               : isChatOpen
                   ? _buildChatWindow() // Show chat window if open
-                  : _buildChatList(),   // Show conversation list otherwise
+                  : _buildChatList(), // Show conversation list otherwise
         ),
       ),
     );
   }
-
 } // End of _LiveChat2State

@@ -244,19 +244,51 @@ class ApiService {
     return res.statusCode == 200;
   }
 
-  static Future<List<dynamic>> fetchMessages(String conversationId) async {
-    final token = await _getToken();
+  static Future<List<Map<String, dynamic>>> fetchMessages(
+    String conversationId,
+  ) async {
+    final token = await _getToken(); // Assuming _getToken() exists
+    if (token == null || token.isEmpty) {
+      throw Exception('Authentication token not found.');
+    }
 
-    final res = await http.get(
-      Uri.parse("$baseUrl/chat/$conversationId"),
-      headers: {"Authorization": "Bearer $token"},
-    );
+    // --- ADJUSTED ENDPOINT ---
+    // Your controller uses req.params, so the ID must be part of the URL path
+    final url = Uri.parse("$baseUrl/conversation/message/$conversationId");
 
-    if (res.statusCode == 200) {
-      final data = jsonDecode(res.body);
-      return data["messages"];
-    } else {
-      throw Exception("Failed to load messages");
+    try {
+      final res = await http.get(
+        url,
+        headers: {"Authorization": "Bearer $token"},
+      );
+
+      // --- PARSING LOGIC ---
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        // Extract the list from the "data" key
+        final List<dynamic> messagesList = data['data'] ?? [];
+        return messagesList.cast<Map<String, dynamic>>();
+      }
+      // --- HANDLE EMPTY CHAT ---
+      // Your backend sends 400 if no messages are found.
+      // We'll catch this and return an empty list, which is not an error.
+      else if (res.statusCode == 400) {
+        final data = jsonDecode(res.body);
+        if (data['message'] == "No message found.") {
+          return []; // Return an empty list
+        } else {
+          // It was a different 400 error (e.g., "Please send conversationId")
+          throw Exception("Failed to fetch messages: ${data['message']}");
+        }
+      }
+      // --- HANDLE OTHER ERRORS ---
+      else {
+        throw Exception(
+          "Failed to fetch messages (Status ${res.statusCode}): ${res.body}",
+        );
+      }
+    } catch (e) {
+      throw Exception("Error during fetchMessages: $e");
     }
   }
 
