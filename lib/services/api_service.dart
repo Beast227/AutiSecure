@@ -348,7 +348,7 @@ class ApiService {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
       },
-      body: jsonEncode({'appointmentId': appointmentId}),
+      body: jsonEncode({'requestId': appointmentId}),
     );
     debugPrint(
       "✅ Rejected appointment $appointmentId, status: ${response.statusCode}",
