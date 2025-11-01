@@ -1,7 +1,7 @@
 import 'package:autisecure/globals.dart' as globals;
 import 'package:autisecure/mainScreens/user/home_page.dart';
 // import 'package:autisecure/mainScreens/user/live_chat.dart';
-import 'package:autisecure/live_chat2.dart';
+import 'package:autisecure/mainScreens/user/live_chat.dart';
 // import 'package:autisecure/mainScreens/liveChat.dart';
 import 'package:autisecure/mainScreens/user/test_screen.dart';
 import 'package:autisecure/mainScreens/user/doctor_screen.dart';
@@ -98,9 +98,9 @@ class _LandingscreenState extends State<Landingscreen> {
         backgroundColor: Colors.orange,
         title: buildHeader(),
       ),
-      body: IndexedStack(        // <--- SOLUTION: Use IndexedStack
-      index: globals.selectedIndex,   // This shows the correct page
-      children: pages,         // This keeps ALL pages in memory
+      body: IndexedStack(
+      index: globals.selectedIndex,
+      children: pages,
     ),
       bottomNavigationBar: buildBottomNavBar(),
     );

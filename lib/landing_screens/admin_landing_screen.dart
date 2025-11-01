@@ -89,7 +89,10 @@ class _AdminLandingScreenState extends State<AdminLandingScreen> {
         backgroundColor: Colors.orange,
         title: buildHeader(),
       ),
-      body: pages[_selectedIndex],
+      body: IndexedStack(
+      index: _selectedIndex,
+      children: pages,
+      ),
       bottomNavigationBar: buildBottomNavBar(),
     );
   }
