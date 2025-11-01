@@ -35,7 +35,7 @@ class SocketService {
     socket = null;
 
     socket = io.io(
-      'https://autisecure-backend.onrender.com', // ✅ correct URL
+      'https://autisense-backend.onrender.com',
       io.OptionBuilder()
           .setTransports(['websocket'])
           .enableForceNew()
