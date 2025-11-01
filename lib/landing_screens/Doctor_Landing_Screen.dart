@@ -75,11 +75,11 @@ class ADoctorLndingScreenState extends State<DoctorLndingScreen> {
           label: "Test",
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.chat, size: 30),
+          icon: Icon(Icons.medical_information, size: 30),
           label: "Doctors",
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.person, size: 30),
+          icon: Icon(Icons.chat, size: 30),
           label: "Chat",
         ),
         BottomNavigationBarItem(

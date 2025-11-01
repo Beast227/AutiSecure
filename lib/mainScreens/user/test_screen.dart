@@ -136,7 +136,7 @@ class _TestScreenState extends State<TestScreen>
 
     try {
       final request = http.MultipartRequest("POST", url)
-        ..fields["upload_preset"] = uploadPreset! // Use non-null preset
+        ..fields["upload_preset"] = uploadPreset // Use non-null preset
         ..files.add(
           await http.MultipartFile.fromPath("file", videoFile.path),
         );

@@ -244,8 +244,9 @@ class _LiveChat2State extends State<LiveChat2>
       debugPrint("❌ Error loading conversations: $e");
       // Only show error if there was no cache to load initially
       if (cachedDataString == null) {
-        if (mounted)
+        if (mounted) {
           _showSnackBar("Could not load conversations.", isError: true);
+        }
       }
     }
   }
@@ -341,8 +342,9 @@ class _LiveChat2State extends State<LiveChat2>
       // Show error only if there was no cache to load initially
       if (prefs.getString(_pendingCacheKey) == null &&
           prefs.getString(_approvedCacheKey) == null) {
-        if (mounted)
+        if (mounted) {
           _showSnackBar("Could not load appointments.", isError: true);
+        }
       }
     }
   }
@@ -397,8 +399,9 @@ class _LiveChat2State extends State<LiveChat2>
 
   Future<void> _sendMessage() async {
     final text = messageController.text.trim();
-    if (text.isEmpty || selectedConversationId == null || userId == null)
+    if (text.isEmpty || selectedConversationId == null || userId == null) {
       return;
+    }
 
     if (!socketService.isConnected) {
       _showSnackBar("Not connected. Reconnecting...", isError: true);
@@ -855,10 +858,11 @@ class _LiveChat2State extends State<LiveChat2>
                                     isError: true,
                                   );
                                 } finally {
-                                  if (mounted)
+                                  if (mounted) {
                                     setApprovalModalState(
                                       () => isProcessing = false,
                                     );
+                                  }
                                 }
                               },
                               style: OutlinedButton.styleFrom(
@@ -934,10 +938,11 @@ class _LiveChat2State extends State<LiveChat2>
                                     isError: true,
                                   );
                                 } finally {
-                                  if (mounted)
+                                  if (mounted) {
                                     setApprovalModalState(
                                       () => isProcessing = false,
                                     );
+                                  }
                                 }
                               },
                               style: ElevatedButton.styleFrom(

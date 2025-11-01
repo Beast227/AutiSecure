@@ -340,7 +340,7 @@ class ApiService {
     );
   }
 
-  static Future<void> rejectAppointment(String appointmentId) async {
+  static Future<bool> rejectAppointment(String appointmentId) async {
     final token = await _getToken();
     final response = await http.post(
       Uri.parse('$baseUrl/appointments/reject'),
@@ -353,6 +353,7 @@ class ApiService {
     debugPrint(
       "✅ Rejected appointment $appointmentId, status: ${response.statusCode}",
     );
+    return response.statusCode == 200;
   }
 
   // the below is the general api calls
