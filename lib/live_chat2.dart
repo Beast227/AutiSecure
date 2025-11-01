@@ -30,6 +30,7 @@ class _LiveLiveChat2State extends State<LiveChat2>
   bool isChatOpen = false;
   String selectedUser = '';
   String? userId;
+  String? userRole;
   String? selectedConversationId;
   List conversations = [];
   List messages = [];
@@ -65,7 +66,8 @@ class _LiveLiveChat2State extends State<LiveChat2>
   Future<void> _loadDoctorDetailsAndInitialData() async {
     final prefs = await SharedPreferences.getInstance();
     userId = prefs.getString(_userIdKey);
-    debugPrint("🔹 Doctor User ID: $userId");
+    userRole = prefs.getString("role");
+    debugPrint("🔹 Doctor User ID: $userId, $userRole");
 
     if (userId == null || userId!.isEmpty) {
       _showSnackBar("User ID not found. Please log in again.", isError: true);
@@ -395,7 +397,6 @@ class _LiveLiveChat2State extends State<LiveChat2>
   // ===========================
 
   void _showAppointmentsSheet() async {
-    await _loadAppointments(forceRefresh: true);
     showModalBottomSheet(
       // ignore: use_build_context_synchronously
       context: context,
@@ -409,7 +410,7 @@ class _LiveLiveChat2State extends State<LiveChat2>
           builder: (context, setModalState) {
             // 🧠 Small helper to trigger list reload
             Future<void> refreshLists() async {
-              await _loadAppointments(forceRefresh: true);
+              await _loadAppointments(forceRefresh: false);
               if (mounted) setModalState(() {});
             }
 
@@ -1366,7 +1367,7 @@ class _LiveLiveChat2State extends State<LiveChat2>
     return Scaffold(
       backgroundColor: Colors.orange.shade50,
       floatingActionButton:
-          !isChatOpen
+          !isChatOpen && userRole == "Doctor"
               ? badges.Badge(
                 showBadge: _pendingCount > 0,
                 position: badges.BadgePosition.topEnd(top: -4, end: -4),
