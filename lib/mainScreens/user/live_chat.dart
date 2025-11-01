@@ -80,8 +80,14 @@ class _LiveChat2State extends State<LiveChat2>
   Future<void> _connectAndListen() async {
     try {
       await socketService.connect();
-      socketService.onMessageReceived(_handleIncomingMessage);
-      debugPrint("✅ [LiveChat2] Socket connected and listener registered.");
+
+      // Add the listener *after* ensuring connection
+      Future.delayed(const Duration(seconds: 1), () {
+        socketService.onMessageReceived(_handleIncomingMessage);
+        debugPrint(
+          "✅ [LiveChat2] Socket listener registered after connection.",
+        );
+      });
     } catch (e) {
       debugPrint("❌ Failed to connect socket: $e");
       _showSnackBar("Real-time connection failed: $e", isError: true);
@@ -90,8 +96,12 @@ class _LiveChat2State extends State<LiveChat2>
 
   void _handleIncomingMessage(dynamic data) {
     debugPrint('SOCKET: Message Received: $data');
-    if (data is Map<String, dynamic>) {
-      final newMessage = data;
+
+    if (data is Map) {
+      final Map<String, dynamic> newMessage = Map<String, dynamic>.from(
+        data as Map,
+      );
+
       final msgConvoId = newMessage['conversationId'];
 
       if (isChatOpen && msgConvoId == selectedConversationId) {
@@ -105,27 +115,26 @@ class _LiveChat2State extends State<LiveChat2>
         }
 
         if (senderId != userId) {
-          if (mounted) {
-            setState(() {
-              messages.insert(0, newMessage);
-            });
-            _scrollToBottom();
-          }
+          setState(() {
+            messages.insert(0, newMessage);
+          });
+          _scrollToBottom();
         }
       }
 
-      if (mounted) {
-        setState(() {
-          final convoIndex =
-              conversations.indexWhere((c) => c['_id'] == msgConvoId);
-          if (convoIndex != -1) {
-            final convo = conversations.removeAt(convoIndex);
-            convo['lastMessage'] = newMessage['message'];
-            convo['updatedAt'] = newMessage['createdAt'];
-            conversations.insert(0, convo);
-          }
-        });
-      }
+      setState(() {
+        final convoIndex = conversations.indexWhere(
+          (c) => c['_id'] == msgConvoId,
+        );
+        if (convoIndex != -1) {
+          final convo = conversations.removeAt(convoIndex);
+          convo['lastMessage'] = newMessage['message'];
+          convo['updatedAt'] = newMessage['createdAt'];
+          conversations.insert(0, convo);
+        }
+      });
+    } else {
+      debugPrint("⚠️ Unexpected data type from socket: ${data.runtimeType}");
     }
   }
 
@@ -221,30 +230,43 @@ class _LiveChat2State extends State<LiveChat2>
       _showSnackBar("User ID not found. Cannot open chat.", isError: true);
       return;
     }
+
     selectedConversationId = conversation["_id"]?.toString();
     if (selectedConversationId == null) {
       _showSnackBar("Conversation ID missing.", isError: true);
       return;
     }
 
+    // ✅ Step 1: Join the socket room
     socketService.joinRoom(selectedConversationId!);
 
+    // ✅ Step 2: Clear any old listeners
+    socketService.offMessageReceived(_handleIncomingMessage);
+
+    // ✅ Step 3: Register a fresh listener for this room
+    socketService.onMessageReceived(_handleIncomingMessage);
+
+    // --- Get the other participant ---
     final List participants = conversation["participants"] ?? [];
     final otherUser = participants.firstWhere(
       (p) => p is Map && p["id"] != userId,
-      orElse: () => participants.isNotEmpty && participants.first is Map
-          ? participants.first
-          : {"name": "Unknown"},
+      orElse:
+          () =>
+              participants.isNotEmpty && participants.first is Map
+                  ? participants.first
+                  : {"name": "Unknown"},
     );
     selectedUser = otherUser["name"] ?? "Unknown User";
 
     setState(() => isChatOpen = true);
+
     await _loadMessages();
   }
 
   Future<void> _sendMessage() async {
     final text = messageController.text.trim();
-    if (text.isEmpty || selectedConversationId == null || userId == null) return;
+    if (text.isEmpty || selectedConversationId == null || userId == null)
+      return;
 
     if (!socketService.isConnected) {
       _showSnackBar("Not connected. Reconnecting...", isError: true);
@@ -272,10 +294,7 @@ class _LiveChat2State extends State<LiveChat2>
     }
 
     try {
-      socketService.sendMessage(
-        selectedConversationId!,
-        text,
-      );
+      socketService.sendMessage(selectedConversationId!, text);
     } catch (e) {
       debugPrint("❌ Error emitting message: $e");
       if (mounted) {
@@ -309,7 +328,11 @@ class _LiveChat2State extends State<LiveChat2>
       children: [
         Container(
           padding: const EdgeInsets.only(
-              top: 8.0, bottom: 12.0, left: 8.0, right: 16.0),
+            top: 8.0,
+            bottom: 12.0,
+            left: 8.0,
+            right: 16.0,
+          ),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [Colors.orange.shade700, Colors.orange.shade500],
@@ -328,8 +351,11 @@ class _LiveChat2State extends State<LiveChat2>
             children: [
               IconButton(
                 onPressed: () => setState(() => isChatOpen = false),
-                icon: const Icon(Icons.arrow_back_ios_new,
-                    color: Colors.white, size: 22),
+                icon: const Icon(
+                  Icons.arrow_back_ios_new,
+                  color: Colors.white,
+                  size: 22,
+                ),
                 tooltip: "Back to Chats",
               ),
               const SizedBox(width: 4),
@@ -339,9 +365,10 @@ class _LiveChat2State extends State<LiveChat2>
                 child: Text(
                   selectedUser.isNotEmpty ? selectedUser[0].toUpperCase() : '?',
                   style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold),
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -358,70 +385,94 @@ class _LiveChat2State extends State<LiveChat2>
                 ),
               ),
               IconButton(
-                icon: const Icon(Icons.videocam_rounded,
-                    color: Colors.white, size: 28),
-                onPressed: () =>
-                    _showSnackBar("Video call not implemented yet.", isError: true),
+                icon: const Icon(
+                  Icons.videocam_rounded,
+                  color: Colors.white,
+                  size: 28,
+                ),
+                onPressed:
+                    () => _showSnackBar(
+                      "Video call not implemented yet.",
+                      isError: true,
+                    ),
                 tooltip: "Video Call",
               ),
               IconButton(
-                icon: const Icon(Icons.call_rounded,
-                    color: Colors.white, size: 24),
-                onPressed: () =>
-                    _showSnackBar("Audio call not implemented yet.", isError: true),
+                icon: const Icon(
+                  Icons.call_rounded,
+                  color: Colors.white,
+                  size: 24,
+                ),
+                onPressed:
+                    () => _showSnackBar(
+                      "Audio call not implemented yet.",
+                      isError: true,
+                    ),
                 tooltip: "Audio Call",
               ),
             ],
           ),
         ),
         Expanded(
-          child: messages.isEmpty
-              ? const Center(
-                  child: Text("No messages yet. Start chatting!",
-                      style: TextStyle(color: Colors.grey)))
-              : ListView.builder(
-                  controller: _scrollController,
-                  reverse: true,
-                  itemCount: messages.length,
-                  padding: const EdgeInsets.all(12),
-                  itemBuilder: (context, index) {
-                    final msg = messages[index];
-                    if (msg == null ||
-                        msg is! Map ||
-                        msg["message"] == null ||
-                        msg["sender"] == null) {
-                      return const SizedBox.shrink();
-                    }
+          child:
+              messages.isEmpty
+                  ? const Center(
+                    child: Text(
+                      "No messages yet. Start chatting!",
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  )
+                  : ListView.builder(
+                    controller: _scrollController,
+                    reverse: true,
+                    itemCount: messages.length,
+                    padding: const EdgeInsets.all(12),
+                    itemBuilder: (context, index) {
+                      final msg = messages[index];
+                      if (msg == null ||
+                          msg is! Map ||
+                          msg["message"] == null ||
+                          msg["sender"] == null) {
+                        return const SizedBox.shrink();
+                      }
 
-                    dynamic senderData = msg['sender'];
-                    String senderId = ""; // Corrected typo
-                    if (senderData is Map<String, dynamic>) {
-                      senderId = senderData['id']?.toString() ?? '';
-                    } else {
-                      senderId = senderData?.toString() ?? '';
-                    }
-                    final isMe = senderId == userId;
+                      dynamic senderData = msg['sender'];
+                      String senderId = ""; // Corrected typo
+                      if (senderData is Map<String, dynamic>) {
+                        senderId = senderData['id']?.toString() ?? '';
+                      } else {
+                        senderId = senderData?.toString() ?? '';
+                      }
+                      final isMe = senderId == userId;
 
-                    final bool isLocalFile = msg["filePath"] != null;
-                    final bool isVideo =
-                        msg["message"].toString().contains("[Video File");
+                      final bool isLocalFile = msg["filePath"] != null;
+                      final bool isVideo = msg["message"].toString().contains(
+                        "[Video File",
+                      );
 
-                    return Align(
-                      alignment:
-                          isMe ? Alignment.centerRight : Alignment.centerLeft,
-                      child: Container(
-                        constraints: BoxConstraints(
-                            maxWidth: MediaQuery.of(context).size.width * 0.75),
-                        margin: const EdgeInsets.symmetric(vertical: 5),
-                        padding: isLocalFile
-                            ? const EdgeInsets.symmetric(
-                                vertical: 8, horizontal: 12)
-                            : const EdgeInsets.symmetric(
-                                vertical: 10, horizontal: 14),
-                        decoration: BoxDecoration(
-                            color: isMe
-                                ? Colors.orange.shade200
-                                : Colors.grey.shade200,
+                      return Align(
+                        alignment:
+                            isMe ? Alignment.centerRight : Alignment.centerLeft,
+                        child: Container(
+                          constraints: BoxConstraints(
+                            maxWidth: MediaQuery.of(context).size.width * 0.75,
+                          ),
+                          margin: const EdgeInsets.symmetric(vertical: 5),
+                          padding:
+                              isLocalFile
+                                  ? const EdgeInsets.symmetric(
+                                    vertical: 8,
+                                    horizontal: 12,
+                                  )
+                                  : const EdgeInsets.symmetric(
+                                    vertical: 10,
+                                    horizontal: 14,
+                                  ),
+                          decoration: BoxDecoration(
+                            color:
+                                isMe
+                                    ? Colors.orange.shade200
+                                    : Colors.grey.shade200,
                             borderRadius: BorderRadius.only(
                               topLeft: Radius.circular(16),
                               topRight: Radius.circular(16),
@@ -433,50 +484,59 @@ class _LiveChat2State extends State<LiveChat2>
                                 color: Colors.black.withOpacity(0.05),
                                 blurRadius: 3,
                                 offset: const Offset(0, 1),
-                              )
-                            ]),
-                        child: isLocalFile
-                            ? Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                      isVideo
-                                          ? Icons.videocam_outlined
-                                          : Icons.image_outlined,
-                                      color: Colors.grey.shade700,
-                                      size: 20),
-                                  const SizedBox(width: 8),
-                                  Flexible(
-                                    child: Text(
-                                      msg["message"].toString(),
-                                      style: const TextStyle(
-                                          fontSize: 16,
-                                          color: Colors.black87,
-                                          fontStyle: FontStyle.italic),
+                              ),
+                            ],
+                          ),
+                          child:
+                              isLocalFile
+                                  ? Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        isVideo
+                                            ? Icons.videocam_outlined
+                                            : Icons.image_outlined,
+                                        color: Colors.grey.shade700,
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Flexible(
+                                        child: Text(
+                                          msg["message"].toString(),
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            color: Colors.black87,
+                                            fontStyle: FontStyle.italic,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                  : Text(
+                                    msg["message"].toString(),
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.black87,
                                     ),
                                   ),
-                                ],
-                              )
-                            : Text(
-                                msg["message"].toString(),
-                                style: const TextStyle(
-                                    fontSize: 16, color: Colors.black87),
-                              ),
-                      ),
-                    );
-                  },
-                ),
+                        ),
+                      );
+                    },
+                  ),
         ),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: BoxDecoration(color: Colors.white, boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.2),
-              spreadRadius: 1,
-              blurRadius: 5,
-              offset: const Offset(0, -2),
-            )
-          ]),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.grey.withOpacity(0.2),
+                spreadRadius: 1,
+                blurRadius: 5,
+                offset: const Offset(0, -2),
+              ),
+            ],
+          ),
           child: SafeArea(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
@@ -505,10 +565,14 @@ class _LiveChat2State extends State<LiveChat2>
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(30),
                         borderSide: BorderSide(
-                            color: Colors.orange.shade400, width: 1.5),
+                          color: Colors.orange.shade400,
+                          width: 1.5,
+                        ),
                       ),
                       contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 12),
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
                       filled: true,
                       fillColor: Colors.grey.shade100,
                       isDense: true,
@@ -608,8 +672,11 @@ class _LiveChat2State extends State<LiveChat2>
           final List participants = convo["participants"];
           final otherUser = participants.firstWhere(
             (p) => p is Map && p["id"] != userId,
-            orElse: () =>
-                participants.firstWhere((p) => p is Map, orElse: () => null),
+            orElse:
+                () => participants.firstWhere(
+                  (p) => p is Map,
+                  orElse: () => null,
+                ),
           );
 
           if (otherUser == null) return const SizedBox.shrink();
@@ -619,49 +686,56 @@ class _LiveChat2State extends State<LiveChat2>
               otherUserName.isNotEmpty ? otherUserName[0].toUpperCase() : "?";
           final String lastMessage =
               convo['lastMessage'] ?? 'No messages yet...';
-          final String lastMessageTime = convo['updatedAt'] != null
-              ? DateFormat('h:mm a')
-                  .format(DateTime.parse(convo['updatedAt']).toLocal())
-              : '';
+          final String lastMessageTime =
+              convo['updatedAt'] != null
+                  ? DateFormat(
+                    'h:mm a',
+                  ).format(DateTime.parse(convo['updatedAt']).toLocal())
+                  : '';
           final String? otherUserImageUrl = otherUser['imageUrl'];
 
           return Card(
             color: Colors.white,
             elevation: 2,
             margin: const EdgeInsets.symmetric(vertical: 6),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
             child: ListTile(
               leading: CircleAvatar(
                 radius: 25,
                 backgroundColor: Colors.orange.shade100,
-                backgroundImage: (otherUserImageUrl != null &&
-                        otherUserImageUrl.isNotEmpty)
-                    ? NetworkImage(otherUserImageUrl)
-                    : null,
-                child: (otherUserImageUrl != null && otherUserImageUrl.isNotEmpty)
-                    ? null
-                    : Text(
-                        initial,
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.orange.shade800,
+                backgroundImage:
+                    (otherUserImageUrl != null && otherUserImageUrl.isNotEmpty)
+                        ? NetworkImage(otherUserImageUrl)
+                        : null,
+                child:
+                    (otherUserImageUrl != null && otherUserImageUrl.isNotEmpty)
+                        ? null
+                        : Text(
+                          initial,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.orange.shade800,
+                          ),
                         ),
-                      ),
               ),
               title: Text(
                 otherUserName,
-                style:
-                    const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               subtitle: Text(
                 lastMessage,
                 style: TextStyle(
                   color: Colors.grey.shade600,
-                  fontStyle: lastMessage == 'No messages yet...'
-                      ? FontStyle.italic
-                      : FontStyle.normal,
+                  fontStyle:
+                      lastMessage == 'No messages yet...'
+                          ? FontStyle.italic
+                          : FontStyle.normal,
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -671,17 +745,21 @@ class _LiveChat2State extends State<LiveChat2>
                 children: [
                   Text(
                     lastMessageTime,
-                    style:
-                        TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
                   ),
                   const SizedBox(height: 4),
-                  Icon(Icons.arrow_forward_ios_rounded,
-                      color: Colors.orange.shade400, size: 16),
+                  Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    color: Colors.orange.shade400,
+                    size: 16,
+                  ),
                 ],
               ),
               onTap: () => _openChat(convo),
-              contentPadding:
-                  const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+              contentPadding: const EdgeInsets.symmetric(
+                vertical: 8,
+                horizontal: 16,
+              ),
             ),
           );
         },
@@ -702,10 +780,12 @@ class _LiveChat2State extends State<LiveChat2>
             return FadeTransition(opacity: animation, child: child);
           },
           key: ValueKey(isChatOpen),
-          child: _isLoading
-              ? const Center(
-                  child: CircularProgressIndicator(color: Colors.orange))
-              : isChatOpen
+          child:
+              _isLoading
+                  ? const Center(
+                    child: CircularProgressIndicator(color: Colors.orange),
+                  )
+                  : isChatOpen
                   ? _buildChatWindow()
                   : _buildChatList(),
         ),
@@ -721,9 +801,10 @@ class _LiveChat2State extends State<LiveChat2>
     setState(() {
       messages.insert(0, {
         "sender": {"id": userId, "role": "user"},
-        "message": isVideo
-            ? "[Video File: ${file.path.split('/').last}]"
-            : "[Image File: ${file.path.split('/').last}]",
+        "message":
+            isVideo
+                ? "[Video File: ${file.path.split('/').last}]"
+                : "[Image File: ${file.path.split('/').last}]",
         "timestamp": DateTime.now().toIso8601String(),
         "filePath": file.path,
       });
@@ -837,9 +918,7 @@ class _LiveChat2State extends State<LiveChat2>
         decoration: BoxDecoration(
           color: color.withAlpha((255 * 0.08).round()),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: color.withAlpha((255 * 0.3).round()),
-          ),
+          border: Border.all(color: color.withAlpha((255 * 0.3).round())),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
