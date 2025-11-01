@@ -917,15 +917,13 @@ class _LiveLiveChat2State extends State<LiveChat2>
 
   // Chat window and chat list UI (unchanged aside minor improvements)
   Widget _buildChatWindow() {
+    debugPrint("🟧 Loaded messages: $messages");
+
     return Column(
       children: [
+        // 🔶 Chat Header
         Container(
-          padding: const EdgeInsets.only(
-            top: 8.0,
-            bottom: 12.0,
-            left: 8.0,
-            right: 16.0,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [Colors.orange.shade700, Colors.orange.shade500],
@@ -944,179 +942,157 @@ class _LiveLiveChat2State extends State<LiveChat2>
             children: [
               IconButton(
                 onPressed: () => setState(() => isChatOpen = false),
-                icon: const Icon(
-                  Icons.arrow_back_ios_new,
-                  color: Colors.white,
-                  size: 22,
-                ),
-                tooltip: "Back to Chats",
+                icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
               ),
-              const SizedBox(width: 4),
+              const SizedBox(width: 6),
               CircleAvatar(
                 radius: 20,
                 backgroundColor: Colors.white.withOpacity(0.3),
                 child: Text(
-                  selectedUser.isNotEmpty ? selectedUser[0].toUpperCase() : '?',
+                  selectedUser.isNotEmpty ? selectedUser[0].toUpperCase() : "?",
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   selectedUser,
                   style: const TextStyle(
-                    fontSize: 19,
-                    fontWeight: FontWeight.w600,
                     color: Colors.white,
-                    letterSpacing: 0.5,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 18,
                   ),
-                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              IconButton(
-                icon: const Icon(
-                  Icons.videocam_rounded,
-                  color: Colors.white,
-                  size: 28,
-                ),
-                onPressed:
-                    () => _showSnackBar(
-                      "Video call not implemented yet.",
-                      isError: true,
-                    ),
-                tooltip: "Video Call",
-              ),
-              IconButton(
-                icon: const Icon(
-                  Icons.call_rounded,
-                  color: Colors.white,
-                  size: 24,
-                ),
-                onPressed:
-                    () => _showSnackBar(
-                      "Audio call not implemented yet.",
-                      isError: true,
-                    ),
-                tooltip: "Audio Call",
               ),
             ],
           ),
         ),
+
+        // 🟠 Messages List
         Expanded(
           child:
               messages.isEmpty
-                  ? const Center(
-                    child: Text(
-                      "No messages yet. Start chatting!",
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  )
+                  ? const Center(child: Text("No messages yet"))
                   : ListView.builder(
                     controller: _scrollController,
                     reverse: true,
-                    itemCount: messages.length,
                     padding: const EdgeInsets.all(12),
+                    itemCount: messages.length,
                     itemBuilder: (context, index) {
                       final msg = messages[index];
-                      if (msg == null ||
-                          msg is! Map ||
-                          msg["message"] == null ||
-                          msg["sender"] == null) {
+                      if (msg == null || msg["sender"] == null) {
                         return const SizedBox.shrink();
                       }
 
-                      dynamic senderData = msg['sender'];
-                      String senderId = "";
-                      if (senderData is Map<String, dynamic>) {
-                        senderId = senderData['id']?.toString() ?? '';
-                      } else {
-                        senderId = senderData?.toString() ?? '';
-                      }
-                      final isMe = senderId == userId;
-
-                      final bool isLocalFile = msg["filePath"] != null;
-                      final bool isVideo = msg["message"].toString().contains(
-                        "[Video File",
+                      final sender = msg["sender"];
+                      final senderId = sender["id"]?.toString() ?? "";
+                      final senderRole = sender["role"]?.toString() ?? "user";
+                      final messageText = msg["message"]?.toString() ?? "";
+                      final createdAt = DateTime.tryParse(
+                        msg["createdAt"] ?? "",
                       );
 
-                      return Align(
+                      final formattedTime =
+                          createdAt != null
+                              ? "${(createdAt.hour % 12 == 0 ? 12 : createdAt.hour % 12).toString().padLeft(2, '0')}:${createdAt.minute.toString().padLeft(2, '0')} ${createdAt.hour >= 12 ? 'PM' : 'AM'}"
+                              : "";
+
+                      final bool isMe = senderId == userId;
+
+                      return Container(
+                        margin: EdgeInsets.only(
+                          top: 6,
+                          bottom: 6,
+                          left: isMe ? 60 : 10,
+                          right: isMe ? 10 : 60,
+                        ),
                         alignment:
                             isMe ? Alignment.centerRight : Alignment.centerLeft,
-                        child: Container(
-                          constraints: BoxConstraints(
-                            maxWidth: MediaQuery.of(context).size.width * 0.75,
-                          ),
-                          margin: const EdgeInsets.symmetric(vertical: 5),
-                          padding:
-                              isLocalFile
-                                  ? const EdgeInsets.symmetric(
-                                    vertical: 8,
-                                    horizontal: 12,
-                                  )
-                                  : const EdgeInsets.symmetric(
-                                    vertical: 10,
-                                    horizontal: 14,
-                                  ),
-                          decoration: BoxDecoration(
-                            color:
-                                isMe
-                                    ? Colors.orange.shade200
-                                    : Colors.grey.shade200,
-                            borderRadius: BorderRadius.only(
-                              topLeft: Radius.circular(16),
-                              topRight: Radius.circular(16),
-                              bottomLeft: Radius.circular(isMe ? 16 : 0),
-                              bottomRight: Radius.circular(isMe ? 0 : 16),
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
-                                blurRadius: 3,
-                                offset: const Offset(0, 1),
+                        child: Column(
+                          crossAxisAlignment:
+                              isMe
+                                  ? CrossAxisAlignment.end
+                                  : CrossAxisAlignment.start,
+                          children: [
+                            // 💬 Message Bubble
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 10,
+                                horizontal: 14,
                               ),
-                            ],
-                          ),
-                          child:
-                              isLocalFile
-                                  ? Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        isVideo
-                                            ? Icons.videocam_outlined
-                                            : Icons.image_outlined,
-                                        color: Colors.grey.shade700,
-                                        size: 20,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Flexible(
-                                        child: Text(
-                                          msg["message"].toString(),
-                                          style: const TextStyle(
-                                            fontSize: 16,
-                                            color: Colors.black87,
-                                            fontStyle: FontStyle.italic,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  )
-                                  : Text(
-                                    msg["message"].toString(),
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      color: Colors.black87,
+                              decoration: BoxDecoration(
+                                color:
+                                    isMe
+                                        ? Colors.orange.shade400
+                                        : Colors.grey.shade200,
+                                borderRadius: BorderRadius.only(
+                                  topLeft: const Radius.circular(18),
+                                  topRight: const Radius.circular(18),
+                                  bottomLeft:
+                                      isMe
+                                          ? const Radius.circular(18)
+                                          : Radius.zero,
+                                  bottomRight:
+                                      isMe
+                                          ? Radius.zero
+                                          : const Radius.circular(18),
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.08),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Text(
+                                messageText,
+                                style: TextStyle(
+                                  color: isMe ? Colors.white : Colors.black87,
+                                  fontSize: 16,
+                                  height: 1.3,
+                                ),
+                              ),
+                            ),
+
+                            const SizedBox(height: 4),
+
+                            // 🕒 Time + Sender
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                mainAxisAlignment:
+                                    isMe
+                                        ? MainAxisAlignment.end
+                                        : MainAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    isMe
+                                        ? "You  •  $formattedTime"
+                                        : "Person  •  $formattedTime",
+                                    style: TextStyle(
+                                      color: Colors.grey.shade600,
+                                      fontSize: 12,
+                                      fontStyle: FontStyle.italic,
                                     ),
                                   ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       );
                     },
                   ),
         ),
+
+        // 🟢 Input Area
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
@@ -1124,7 +1100,6 @@ class _LiveLiveChat2State extends State<LiveChat2>
             boxShadow: [
               BoxShadow(
                 color: Colors.grey.withOpacity(0.2),
-                spreadRadius: 1,
                 blurRadius: 5,
                 offset: const Offset(0, -2),
               ),
@@ -1132,69 +1107,42 @@ class _LiveLiveChat2State extends State<LiveChat2>
           ),
           child: SafeArea(
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 IconButton(
                   icon: const Icon(
                     Icons.add_circle_outline_rounded,
                     color: Colors.orange,
-                    size: 28,
                   ),
-                  tooltip: "Send Media",
                   onPressed: _pickMedia,
                 ),
                 Expanded(
                   child: TextField(
                     controller: messageController,
-                    style: const TextStyle(fontSize: 16),
-                    maxLines: null,
-                    textInputAction: TextInputAction.newline,
                     decoration: InputDecoration(
                       hintText: "Type a message...",
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(30),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(30),
-                        borderSide: BorderSide(
-                          color: Colors.orange.shade400,
-                          width: 1.5,
-                        ),
-                      ),
+                      filled: true,
+                      fillColor: Colors.grey.shade100,
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
                         vertical: 12,
                       ),
-                      filled: true,
-                      fillColor: Colors.grey.shade100,
-                      isDense: true,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(30),
+                        borderSide: BorderSide.none,
+                      ),
                     ),
-                    onSubmitted: (_) => _sendMessage(),
                   ),
                 ),
                 const SizedBox(width: 8),
                 GestureDetector(
                   onTap: _sendMessage,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
+                  child: Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: Colors.orange.shade700,
                       shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.orange.withOpacity(0.4),
-                          blurRadius: 6,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
                     ),
-                    child: const Icon(
-                      Icons.send_rounded,
-                      color: Colors.white,
-                      size: 24,
-                    ),
+                    child: const Icon(Icons.send_rounded, color: Colors.white),
                   ),
                 ),
               ],
