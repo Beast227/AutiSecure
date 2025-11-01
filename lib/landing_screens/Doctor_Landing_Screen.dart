@@ -99,7 +99,10 @@ class ADoctorLndingScreenState extends State<DoctorLndingScreen> {
         backgroundColor: Colors.orange,
         title: buildHeader(),
       ),
-      body: pages[globals.selectedIndex],
+      body: IndexedStack(
+      index: globals.selectedIndex,
+      children: pages,
+      ),
       bottomNavigationBar: buildBottomNavBar(),
     );
   }
