@@ -1,10 +1,12 @@
 import 'package:animated_splash_screen/animated_splash_screen.dart';
+import 'package:autisecure/firebase_options.dart';
 import 'package:autisecure/landing_screens/doctor_landing_screen.dart';
 import 'package:autisecure/landing_screens/admin_landing_screen.dart';
 import 'package:autisecure/landing_screens/landing_screen.dart';
 import 'package:autisecure/login_signup/login_screen.dart';
 import 'package:autisecure/mainScreens/user/home_page.dart';
 import 'package:autisecure/state_models/survey_state.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
@@ -13,6 +15,7 @@ import 'package:page_transition/page_transition.dart';
 
 Future<void> main() async {
   await dotenv.load(fileName: ".env");
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(
     ChangeNotifierProvider(
       create: (_) {

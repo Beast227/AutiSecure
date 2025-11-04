@@ -87,7 +87,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     }
   }
 
-  Future<void> submitRegistration(context) async {
+  Future<void> submitRegistration(BuildContext context) async {
     // --- START VALIDATION ---
     final name = nameController.text.trim();
     final email = emailController.text.trim();
@@ -98,40 +98,33 @@ class _SignUpScreenState extends State<SignUpScreen> {
     final confirmPassword = confirmPasswordController.text.trim();
     final fcmToken = await FirebaseMessaging.instance.getToken();
 
-    // 1. Check for empty common fields
+    // 1️⃣ Check for empty fields
     if (name.isEmpty ||
         email.isEmpty ||
         phone.isEmpty ||
         address.isEmpty ||
         dob.isEmpty ||
-        password.isEmpty) {
-      _showSnackBar("Please fill all required fields.");
+        password.isEmpty ||
+        confirmPassword.isEmpty) {
+      _showSnackBar("⚠️ Please fill all required fields.");
       return;
     }
 
-    // 2. Check for password match
+    // 2️⃣ Password match check
     if (password != confirmPassword) {
-      _showSnackBar("Passwords do not match!");
+      _showSnackBar("⚠️ Passwords do not match.");
       return;
     }
 
-    // 3. Define Regex Patterns
-    // Name: Allows letters, spaces, and hyphens
+    // 3️⃣ Define Regex patterns
     final nameRegex = RegExp(r'^[a-zA-Z\s\-]+$');
-    // Email: Standard email format
-    final emailRegex = RegExp(
-      r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+",
-    );
-    // Phone: Simple 10-digit number
+    final emailRegex = RegExp(r"^[\w\.\-]+@[\w\-]+\.[a-zA-Z]{2,}$");
     final phoneRegex = RegExp(r'^\d{10}$');
-    // Password: 8+ characters, at least 1 letter and 1 number
     final passwordRegex = RegExp(r'^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$');
 
-    // 4. Apply Regex
+    // 4️⃣ Apply Regex
     if (!nameRegex.hasMatch(name)) {
-      _showSnackBar(
-        "Please enter a valid name (letters, spaces, hyphens only).",
-      );
+      _showSnackBar("Enter a valid name (letters, spaces, hyphens only).");
       return;
     }
     if (!emailRegex.hasMatch(email)) {
@@ -139,17 +132,17 @@ class _SignUpScreenState extends State<SignUpScreen> {
       return;
     }
     if (!phoneRegex.hasMatch(phone)) {
-      _showSnackBar("Please enter a 10-digit phone number.");
+      _showSnackBar("Phone number must be exactly 10 digits.");
       return;
     }
     if (!passwordRegex.hasMatch(password)) {
       _showSnackBar(
-        "Password must be 8+ characters with at least one letter and one number.",
+        "Password must be at least 8 characters long and include one letter and one number.",
       );
       return;
     }
 
-    // 5. Check doctor-specific fields (if applicable)
+    // 5️⃣ Doctor-specific validation
     if (dropDownValue == "Doctor") {
       if (specialization.text.trim().isEmpty ||
           experience.text.trim().isEmpty ||
@@ -159,13 +152,21 @@ class _SignUpScreenState extends State<SignUpScreen> {
         return;
       }
     }
+
     // --- END VALIDATION ---
 
+    // 6️⃣ Upload doctor image if provided
     String? imageUrl;
     if (doctorImage != null) {
-      imageUrl = await uploadDoctorimage(doctorImage!);
+      try {
+        imageUrl = await uploadDoctorimage(doctorImage!);
+      } catch (e) {
+        _showSnackBar("Image upload failed. Please try again.");
+        return;
+      }
     }
 
+    // 7️⃣ Prepare request data
     final url = Uri.parse(
       dropDownValue == "Doctor"
           ? 'https://autisense-backend.onrender.com/api/doctor/register'
@@ -180,7 +181,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
       "dob": dob,
       "password": password,
       "imageUrl": imageUrl,
+      "fcmToken": fcmToken,
     };
+
     if (dropDownValue == "Doctor") {
       data.addAll({
         "speciality": specialization.text.trim(),
@@ -190,26 +193,22 @@ class _SignUpScreenState extends State<SignUpScreen> {
       });
     }
 
-    // Add try-catch for network errors
+    // 8️⃣ Send data to both servers
     try {
-      final response1 = await http.post(
+      final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
         body: json.encode(data),
       );
-      final response2 = await http.post(
-        Uri.parse('https://autisecure-backend.onrender.com/api/auth/register'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          "name": name,
-          "email": email,
-          "fcmToken": fcmToken, // 👈 include token
-        }),
-      );
 
-      if (!mounted) return;
+      debugPrint("FCM Token: $fcmToken");
+      debugPrint("Response : ${response.statusCode} ${response.body}");
 
-      if (response1.statusCode == 200 && response2.statusCode == 200) {
+      if (!context.mounted) return;
+
+      // 9️⃣ Handle responses clearly
+      if (response.statusCode == 201) {
+        // Clear all controllers
         nameController.clear();
         emailController.clear();
         phController.clear();
@@ -222,17 +221,20 @@ class _SignUpScreenState extends State<SignUpScreen> {
         docInfo.clear();
         clinicLoc.clear();
 
-        _showSnackBar("Registration successful: ${response2.body}");
-
+        _showSnackBar("✅ Registration successful!");
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const LoginScreen()),
         );
       } else {
-        _showSnackBar("Couldn't Register: ${response2.body}");
+        final msg1 =
+            jsonDecode(response.body)['message'] ??
+            response.reasonPhrase ??
+            "Unknown error from server 1.";
+        _showSnackBar("❌ Registration failed.\nServer 1: $msg1");
       }
     } catch (e) {
-      _showSnackBar("A network error occurred: ${e.toString()}");
+      _showSnackBar("⚠️ A network error occurred: $e");
     }
   }
 
