@@ -4,9 +4,10 @@ import 'dart:io';
 
 import 'package:autisecure/login_signup/login_screen.dart';
 import 'package:autisecure/mainScreens/user/home_page.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 // 1. ADD THIS IMPORT
-import 'package:flutter/services.dart'; 
+import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
@@ -67,9 +68,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
   // Helper function to safely show a SnackBar
   void _showSnackBar(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _checkIfLoggedIn() async {
@@ -95,6 +96,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     final dob = dobController.text.trim();
     final password = passwordController.text.trim();
     final confirmPassword = confirmPasswordController.text.trim();
+    final fcmToken = await FirebaseMessaging.instance.getToken();
 
     // 1. Check for empty common fields
     if (name.isEmpty ||
@@ -118,7 +120,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
     final nameRegex = RegExp(r'^[a-zA-Z\s\-]+$');
     // Email: Standard email format
     final emailRegex = RegExp(
-        r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+");
+      r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+",
+    );
     // Phone: Simple 10-digit number
     final phoneRegex = RegExp(r'^\d{10}$');
     // Password: 8+ characters, at least 1 letter and 1 number
@@ -127,7 +130,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
     // 4. Apply Regex
     if (!nameRegex.hasMatch(name)) {
       _showSnackBar(
-          "Please enter a valid name (letters, spaces, hyphens only).");
+        "Please enter a valid name (letters, spaces, hyphens only).",
+      );
       return;
     }
     if (!emailRegex.hasMatch(email)) {
@@ -140,7 +144,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
     }
     if (!passwordRegex.hasMatch(password)) {
       _showSnackBar(
-          "Password must be 8+ characters with at least one letter and one number.");
+        "Password must be 8+ characters with at least one letter and one number.",
+      );
       return;
     }
 
@@ -187,15 +192,24 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
     // Add try-catch for network errors
     try {
-      final response = await http.post(
+      final response1 = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
         body: json.encode(data),
       );
+      final response2 = await http.post(
+        Uri.parse('https://autisecure-backend.onrender.com/api/auth/register'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          "name": name,
+          "email": email,
+          "fcmToken": fcmToken, // 👈 include token
+        }),
+      );
 
       if (!mounted) return;
 
-      if (response.statusCode == 200) {
+      if (response1.statusCode == 200 && response2.statusCode == 200) {
         nameController.clear();
         emailController.clear();
         phController.clear();
@@ -208,14 +222,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
         docInfo.clear();
         clinicLoc.clear();
 
-        _showSnackBar("Registration successful: ${response.body}");
+        _showSnackBar("Registration successful: ${response2.body}");
 
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const LoginScreen()),
         );
       } else {
-        _showSnackBar("Couldn't Register: ${response.body}");
+        _showSnackBar("Couldn't Register: ${response2.body}");
       }
     } catch (e) {
       _showSnackBar("A network error occurred: ${e.toString()}");
@@ -247,11 +261,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
       "https://api.cloudinary.com/v1_1/$cloudName/image/upload",
     );
 
-    final request = http.MultipartRequest("POST", url)
-      ..fields["upload_preset"] = uploadPreset
-      ..files.add(
-        await http.MultipartFile.fromPath("file", imageFile.path),
-      );
+    final request =
+        http.MultipartRequest("POST", url)
+          ..fields["upload_preset"] = uploadPreset
+          ..files.add(
+            await http.MultipartFile.fromPath("file", imageFile.path),
+          );
 
     try {
       final response = await request.send();
@@ -301,8 +316,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
               borderRadius: BorderRadius.circular(10),
               borderSide: const BorderSide(color: Colors.purple, width: 2),
             ),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 15,
+              vertical: 15,
+            ),
           ),
         ),
       );
@@ -333,8 +350,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
               const SizedBox(height: 20),
               Container(
                 decoration: const BoxDecoration(color: Colors.white),
-                padding:
-                    const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 20,
+                  horizontal: 12,
+                ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.center,
@@ -377,18 +396,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                   Icons.arrow_drop_down,
                                   color: Colors.grey[600],
                                 ),
-                                items: users.map((String i) {
-                                  return DropdownMenuItem(
-                                    value: i,
-                                    child: Text(
-                                      i,
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  );
-                                }).toList(),
+                                items:
+                                    users.map((String i) {
+                                      return DropdownMenuItem(
+                                        value: i,
+                                        child: Text(
+                                          i,
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      );
+                                    }).toList(),
                                 onChanged: (String? newValue) {
                                   setState(() {
                                     dropDownValue = newValue!;
@@ -403,8 +423,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           const SizedBox(height: 20),
                           buildTextField("Name", nameController, false),
                           const SizedBox(height: 10),
-                          buildTextField("Email", emailController, false,
-                              keyboardType: TextInputType.emailAddress),
+                          buildTextField(
+                            "Email",
+                            emailController,
+                            false,
+                            keyboardType: TextInputType.emailAddress,
+                          ),
                           const SizedBox(height: 10),
                           buildTextField(
                             "Phone Number",
@@ -413,7 +437,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             keyboardType: TextInputType.phone,
                             inputFormatters: [
                               FilteringTextInputFormatter.digitsOnly,
-                              LengthLimitingTextInputFormatter(10), // Limit to 10 digits
+                              LengthLimitingTextInputFormatter(
+                                10,
+                              ), // Limit to 10 digits
                             ],
                           ),
                           const SizedBox(height: 10),
@@ -495,8 +521,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       onPressed: pickDoctorImage,
                       child: const Text("Pick Profile Image"),
                     ),
-                    // --- END OF CORRECTION ---
 
+                    // --- END OF CORRECTION ---
                     const SizedBox(height: 20),
                     ElevatedButton(
                       onPressed: () => {submitRegistration(context)},
