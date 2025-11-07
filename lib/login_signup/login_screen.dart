@@ -4,6 +4,8 @@ import 'package:autisecure/landing_screens/doctor_landing_screen.dart';
 import 'package:autisecure/landing_screens/admin_landing_screen.dart';
 import 'package:autisecure/landing_screens/landing_screen.dart';
 import 'package:autisecure/login_signup/signup_screen.dart';
+import 'package:autisecure/main.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -38,13 +40,16 @@ class _LoginScreenState extends State<LoginScreen> {
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
-          builder: (context) => dropDownValue == "Admin"
-            ? AdminLandingScreen()
-              : dropDownValue == "Doctor"
-                ? DoctorLndingScreen()
-                  : Landingscreen(),
+          builder:
+              (context) =>
+                  dropDownValue == "Admin"
+                      ? AdminLandingScreen()
+                      : dropDownValue == "Doctor"
+                      ? DoctorLndingScreen()
+                      : Landingscreen(),
         ),
-        (Route<dynamic> route) => false, // This line removes all previous routes
+        (Route<dynamic> route) =>
+            false, // This line removes all previous routes
       );
     }
   }
@@ -58,23 +63,30 @@ class _LoginScreenState extends State<LoginScreen> {
     final password = _passwordController.text.trim();
 
     final emailRegex = RegExp(
-        r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+");
+      r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+",
+    );
     final passwordRegex = RegExp(r'^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$');
 
     if (email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Email and password cannot be empty")));
+        const SnackBar(content: Text("Email and password cannot be empty")),
+      );
       return;
     }
     if (!emailRegex.hasMatch(email)) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text("Invalid email format")));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Invalid email format")));
       return;
     }
     if (!passwordRegex.hasMatch(password)) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
           content: Text(
-              "Password must be 8+ characters with at least one letter and one number")));
+            "Password must be 8+ characters with at least one letter and one number",
+          ),
+        ),
+      );
       return;
     }
     // --- End of Validation ---
@@ -90,14 +102,11 @@ class _LoginScreenState extends State<LoginScreen> {
       dropDownValue == "Doctor"
           ? "https://autisense-backend.onrender.com/api/doctor/login"
           : dropDownValue == "Admin"
-              ? "https://autisense-backend.onrender.com/api/admin/login"
-              : "https://autisense-backend.onrender.com/api/user/login",
+          ? "https://autisense-backend.onrender.com/api/admin/login"
+          : "https://autisense-backend.onrender.com/api/user/login",
     );
 
-    final Map<String, dynamic> data = {
-      "email": email,
-      "password": password,
-    };
+    final Map<String, dynamic> data = {"email": email, "password": password};
 
     try {
       final response = await http.post(
@@ -120,26 +129,40 @@ class _LoginScreenState extends State<LoginScreen> {
         String? userName;
         // Adjust keys ('user', 'id', 'name') if your backend response differs
         if (responseData['user'] != null && responseData['user'] is Map) {
-           // Use 'id' or '_id' depending on your backend
-           userId = responseData['user']['id']?.toString() ?? responseData['user']['_id']?.toString();
-           userName = responseData['user']['name']?.toString();
-        } else if (responseData['doctor'] != null && responseData['doctor'] is Map){
-            // Handle doctor login response structure if different
-             userId = responseData['doctor']['id']?.toString() ?? responseData['doctor']['_id']?.toString();
-             userName = responseData['doctor']['name']?.toString();
-        } else if (responseData['admin'] != null && responseData['admin'] is Map){
-             // Handle admin login response structure if different
-             userId = responseData['admin']['id']?.toString() ?? responseData['admin']['_id']?.toString();
-             userName = responseData['admin']['name']?.toString();
+          // Use 'id' or '_id' depending on your backend
+          userId =
+              responseData['user']['id']?.toString() ??
+              responseData['user']['_id']?.toString();
+          userName = responseData['user']['name']?.toString();
+        } else if (responseData['doctor'] != null &&
+            responseData['doctor'] is Map) {
+          // Handle doctor login response structure if different
+          userId =
+              responseData['doctor']['id']?.toString() ??
+              responseData['doctor']['_id']?.toString();
+          userName = responseData['doctor']['name']?.toString();
+        } else if (responseData['admin'] != null &&
+            responseData['admin'] is Map) {
+          // Handle admin login response structure if different
+          userId =
+              responseData['admin']['id']?.toString() ??
+              responseData['admin']['_id']?.toString();
+          userName = responseData['admin']['name']?.toString();
         }
 
-
         // Check if token and userId were actually received
-        if (token == null || token.isEmpty || userId == null || userId.isEmpty) {
-             ScaffoldMessenger.of(context).showSnackBar(
-               const SnackBar(content: Text("Login failed: Missing token or user ID in response."))
-             );
-             return;
+        if (token == null ||
+            token.isEmpty ||
+            userId == null ||
+            userId.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                "Login failed: Missing token or user ID in response.",
+              ),
+            ),
+          );
+          return;
         }
         // --- End Extraction ---
 
@@ -150,51 +173,61 @@ class _LoginScreenState extends State<LoginScreen> {
         await prefs.setString('userId', userId);
         // --- SAVE USER NAME (Optional) ---
         if (userName != null) {
-            await prefs.setString('userName', userName); // Store name if available
+          await prefs.setString(
+            'userName',
+            userName,
+          ); // Store name if available
         }
 
+        final fcmToken = await FirebaseMessaging.instance.getToken();
+        if (fcmToken != null) {
+          await updateFcmToken(fcmToken);
+        }
 
         _emailController.clear();
         _passwordController.clear();
 
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(message)));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
 
         // Use pushAndRemoveUntil to clear the stack
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(
-            builder: (context) => dropDownValue == "Admin"
-                ? const AdminLandingScreen()
-                : dropDownValue == "Doctor"
-                    ? const DoctorLndingScreen()
-                    : const Landingscreen(),
+            builder:
+                (context) =>
+                    dropDownValue == "Admin"
+                        ? const AdminLandingScreen()
+                        : dropDownValue == "Doctor"
+                        ? const DoctorLndingScreen()
+                        : const Landingscreen(),
           ),
           (Route<dynamic> route) => false, // Remove all previous routes
         );
-
       } else {
         // Try to parse error message from backend
         String errorMessage = "Login Failed";
         try {
-            final errorData = json.decode(response.body);
-            errorMessage = errorData['message'] ?? response.body;
+          final errorData = json.decode(response.body);
+          errorMessage = errorData['message'] ?? response.body;
         } catch (_) {
-            errorMessage = response.body; // Fallback to raw body
+          errorMessage = response.body; // Fallback to raw body
         }
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(errorMessage)));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(errorMessage)));
       }
     } catch (e) {
       // Dismiss loading indicator on error
       if (mounted) Navigator.pop(context);
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text("Network error: ${e.toString()}")));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Network error: ${e.toString()}")));
     }
   }
 
-  
   Widget _buildTextField(
     String label,
     TextEditingController controller,
@@ -286,18 +319,19 @@ class _LoginScreenState extends State<LoginScreen> {
                             Icons.arrow_drop_down,
                             color: Colors.grey[600],
                           ),
-                          items: users.map((String i) {
-                            return DropdownMenuItem(
-                              value: i,
-                              child: Text(
-                                i,
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            );
-                          }).toList(),
+                          items:
+                              users.map((String i) {
+                                return DropdownMenuItem(
+                                  value: i,
+                                  child: Text(
+                                    i,
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
                           onChanged: (String? newValue) {
                             setState(() {
                               dropDownValue = newValue!;
