@@ -57,6 +57,7 @@ dependencies:
   video_compress: ^3.1.4
   firebase_core: ^4.2.1
   firebase_messaging: ^16.0.4
+  flutter_webrtc: ^1.2.0
 
 dev_dependencies:
   flutter_test:
