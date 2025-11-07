@@ -1,8 +1,6 @@
 import 'package:autisecure/globals.dart' as globals;
 import 'package:autisecure/mainScreens/user/home_page.dart';
-// import 'package:autisecure/mainScreens/user/live_chat.dart';
 import 'package:autisecure/mainScreens/user/live_chat.dart';
-// import 'package:autisecure/mainScreens/liveChat.dart';
 import 'package:autisecure/mainScreens/user/test_screen.dart';
 import 'package:autisecure/mainScreens/user/doctor_screen.dart';
 import 'package:autisecure/mainScreens/user/profile.dart';
