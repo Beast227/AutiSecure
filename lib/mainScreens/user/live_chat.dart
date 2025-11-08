@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:autisecure/calls/video_call.dart';
 import 'package:autisecure/services/api_service.dart';
 import 'package:autisecure/login_signup/login_screen.dart';
 import 'package:flutter/material.dart';
@@ -243,9 +244,11 @@ class _LiveChat2State extends State<LiveChat2>
     final List participants = conversation["participants"] ?? [];
     final otherUser = participants.firstWhere(
       (p) => p is Map && p["id"] != userId,
-      orElse: () => participants.isNotEmpty && participants.first is Map
-          ? participants.first
-          : {"name": "Unknown"},
+      orElse:
+          () =>
+              participants.isNotEmpty && participants.first is Map
+                  ? participants.first
+                  : {"name": "Unknown"},
     );
     selectedUser = otherUser["name"] ?? "Unknown User";
 
@@ -256,7 +259,8 @@ class _LiveChat2State extends State<LiveChat2>
 
   Future<void> _sendMessage() async {
     final text = messageController.text.trim();
-    if (text.isEmpty || selectedConversationId == null || userId == null) return;
+    if (text.isEmpty || selectedConversationId == null || userId == null)
+      return;
 
     if (!socketService.isConnected) {
       _showSnackBar("Not connected. Reconnecting...", isError: true);
@@ -380,133 +384,147 @@ class _LiveChat2State extends State<LiveChat2>
                   color: Colors.white,
                   size: 28,
                 ),
-                onPressed: () => _showSnackBar(
-                  "Video call not implemented yet.",
-                  isError: true,
-                ),
-                tooltip: "Video Call",
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder:
+                          (context) => VideoCall(
+                            callerName: selectedUser, // name to show on top
+                            selfUserId: userId!, // current user ID (from JWT)
+                            peerUserId: selectedConversationId!, // receiver ID
+                          ),
+                    ),
+                  );
+                },
               ),
+
               IconButton(
                 icon: const Icon(
                   Icons.call_rounded,
                   color: Colors.white,
                   size: 24,
                 ),
-                onPressed: () => _showSnackBar(
-                  "Audio call not implemented yet.",
-                  isError: true,
-                ),
+                onPressed:
+                    () => _showSnackBar(
+                      "Audio call not implemented yet.",
+                      isError: true,
+                    ),
                 tooltip: "Audio Call",
               ),
             ],
           ),
         ),
         Expanded(
-          child: messages.isEmpty
-              ? const Center(
-                  child: Text(
-                    "No messages yet. Start chatting!",
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                )
-              : ListView.builder(
-                  controller: _scrollController,
-                  reverse: true,
-                  itemCount: messages.length,
-                  padding: const EdgeInsets.all(12),
-                  itemBuilder: (context, index) {
-                    final msg = messages[index];
-                    if (msg == null ||
-                        msg is! Map ||
-                        msg["message"] == null ||
-                        msg["sender"] == null) {
-                      return const SizedBox.shrink();
-                    }
+          child:
+              messages.isEmpty
+                  ? const Center(
+                    child: Text(
+                      "No messages yet. Start chatting!",
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  )
+                  : ListView.builder(
+                    controller: _scrollController,
+                    reverse: true,
+                    itemCount: messages.length,
+                    padding: const EdgeInsets.all(12),
+                    itemBuilder: (context, index) {
+                      final msg = messages[index];
+                      if (msg == null ||
+                          msg is! Map ||
+                          msg["message"] == null ||
+                          msg["sender"] == null) {
+                        return const SizedBox.shrink();
+                      }
 
-                    dynamic senderData = msg['sender'];
-                    String senderId = "";
-                    if (senderData is Map<String, dynamic>) {
-                      senderId = senderData['id']?.toString() ?? '';
-                    } else {
-                      senderId = senderData?.toString() ?? '';
-                    }
-                    final isMe = senderId == userId;
+                      dynamic senderData = msg['sender'];
+                      String senderId = "";
+                      if (senderData is Map<String, dynamic>) {
+                        senderId = senderData['id']?.toString() ?? '';
+                      } else {
+                        senderId = senderData?.toString() ?? '';
+                      }
+                      final isMe = senderId == userId;
 
-                    final bool isLocalFile = msg["filePath"] != null;
-                    final bool isVideo = msg["message"].toString().contains(
-                          "[Video File",
-                        );
+                      final bool isLocalFile = msg["filePath"] != null;
+                      final bool isVideo = msg["message"].toString().contains(
+                        "[Video File",
+                      );
 
-                    return Align(
-                      alignment:
-                          isMe ? Alignment.centerRight : Alignment.centerLeft,
-                      child: Container(
-                        constraints: BoxConstraints(
-                          maxWidth: MediaQuery.of(context).size.width * 0.75,
-                        ),
-                        margin: const EdgeInsets.symmetric(vertical: 5),
-                        padding: isLocalFile
-                            ? const EdgeInsets.symmetric(
-                                vertical: 8,
-                                horizontal: 12,
-                              )
-                            : const EdgeInsets.symmetric(
-                                vertical: 10,
-                                horizontal: 14,
-                              ),
-                        decoration: BoxDecoration(
-                          color: isMe
-                              ? Colors.orange.shade200
-                              : Colors.grey.shade200,
-                          borderRadius: BorderRadius.only(
-                            topLeft: Radius.circular(16),
-                            topRight: Radius.circular(16),
-                            bottomLeft: Radius.circular(isMe ? 16 : 0),
-                            bottomRight: Radius.circular(isMe ? 0 : 16),
+                      return Align(
+                        alignment:
+                            isMe ? Alignment.centerRight : Alignment.centerLeft,
+                        child: Container(
+                          constraints: BoxConstraints(
+                            maxWidth: MediaQuery.of(context).size.width * 0.75,
                           ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
-                              blurRadius: 3,
-                              offset: const Offset(0, 1),
-                            ),
-                          ],
-                        ),
-                        child: isLocalFile
-                            ? Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    isVideo
-                                        ? Icons.videocam_outlined
-                                        : Icons.image_outlined,
-                                    color: Colors.grey.shade700,
-                                    size: 20,
+                          margin: const EdgeInsets.symmetric(vertical: 5),
+                          padding:
+                              isLocalFile
+                                  ? const EdgeInsets.symmetric(
+                                    vertical: 8,
+                                    horizontal: 12,
+                                  )
+                                  : const EdgeInsets.symmetric(
+                                    vertical: 10,
+                                    horizontal: 14,
                                   ),
-                                  const SizedBox(width: 8),
-                                  Flexible(
-                                    child: Text(
-                                      msg["message"].toString(),
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        color: Colors.black87,
-                                        fontStyle: FontStyle.italic,
+                          decoration: BoxDecoration(
+                            color:
+                                isMe
+                                    ? Colors.orange.shade200
+                                    : Colors.grey.shade200,
+                            borderRadius: BorderRadius.only(
+                              topLeft: Radius.circular(16),
+                              topRight: Radius.circular(16),
+                              bottomLeft: Radius.circular(isMe ? 16 : 0),
+                              bottomRight: Radius.circular(isMe ? 0 : 16),
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 3,
+                                offset: const Offset(0, 1),
+                              ),
+                            ],
+                          ),
+                          child:
+                              isLocalFile
+                                  ? Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        isVideo
+                                            ? Icons.videocam_outlined
+                                            : Icons.image_outlined,
+                                        color: Colors.grey.shade700,
+                                        size: 20,
                                       ),
+                                      const SizedBox(width: 8),
+                                      Flexible(
+                                        child: Text(
+                                          msg["message"].toString(),
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            color: Colors.black87,
+                                            fontStyle: FontStyle.italic,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                  : Text(
+                                    msg["message"].toString(),
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.black87,
                                     ),
                                   ),
-                                ],
-                              )
-                            : Text(
-                                msg["message"].toString(),
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                      ),
-                    );
-                  },
-                ),
+                        ),
+                      );
+                    },
+                  ),
         ),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -656,10 +674,11 @@ class _LiveChat2State extends State<LiveChat2>
           final List participants = convo["participants"];
           final otherUser = participants.firstWhere(
             (p) => p is Map && p["id"] != userId,
-            orElse: () => participants.firstWhere(
-              (p) => p is Map,
-              orElse: () => null,
-            ),
+            orElse:
+                () => participants.firstWhere(
+                  (p) => p is Map,
+                  orElse: () => null,
+                ),
           );
 
           if (otherUser == null) return const SizedBox.shrink();
@@ -669,11 +688,12 @@ class _LiveChat2State extends State<LiveChat2>
               otherUserName.isNotEmpty ? otherUserName[0].toUpperCase() : "?";
           final String lastMessage =
               convo['lastMessage'] ?? 'No messages yet...';
-          final String lastMessageTime = convo['updatedAt'] != null
-              ? DateFormat(
-                  'h:mm a',
-                ).format(DateTime.parse(convo['updatedAt']).toLocal())
-              : '';
+          final String lastMessageTime =
+              convo['updatedAt'] != null
+                  ? DateFormat(
+                    'h:mm a',
+                  ).format(DateTime.parse(convo['updatedAt']).toLocal())
+                  : '';
           final String? otherUserImageUrl = otherUser['imageUrl'];
 
           return Card(
@@ -695,13 +715,13 @@ class _LiveChat2State extends State<LiveChat2>
                     (otherUserImageUrl != null && otherUserImageUrl.isNotEmpty)
                         ? null
                         : Text(
-                            initial,
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.orange.shade800,
-                            ),
+                          initial,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.orange.shade800,
                           ),
+                        ),
               ),
               title: Text(
                 otherUserName,
@@ -714,9 +734,10 @@ class _LiveChat2State extends State<LiveChat2>
                 lastMessage,
                 style: TextStyle(
                   color: Colors.grey.shade600,
-                  fontStyle: lastMessage == 'No messages yet...'
-                      ? FontStyle.italic
-                      : FontStyle.normal,
+                  fontStyle:
+                      lastMessage == 'No messages yet...'
+                          ? FontStyle.italic
+                          : FontStyle.normal,
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -761,11 +782,12 @@ class _LiveChat2State extends State<LiveChat2>
             return FadeTransition(opacity: animation, child: child);
           },
           key: ValueKey(isChatOpen),
-          child: _isLoading
-              ? const Center(
-                  child: CircularProgressIndicator(color: Colors.orange),
-                )
-              : isChatOpen
+          child:
+              _isLoading
+                  ? const Center(
+                    child: CircularProgressIndicator(color: Colors.orange),
+                  )
+                  : isChatOpen
                   ? _buildChatWindow()
                   : _buildChatList(),
         ),
@@ -781,9 +803,10 @@ class _LiveChat2State extends State<LiveChat2>
     setState(() {
       messages.insert(0, {
         "sender": {"id": userId, "role": "user"}, // This was already 'user'
-        "message": isVideo
-            ? "[Video File: ${file.path.split('/').last}]"
-            : "[Image File: ${file.path.split('/').last}]",
+        "message":
+            isVideo
+                ? "[Video File: ${file.path.split('/').last}]"
+                : "[Image File: ${file.path.split('/').last}]",
         "timestamp": DateTime.now().toIso8601String(),
         "filePath": file.path,
       });
