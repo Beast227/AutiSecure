@@ -11,6 +11,7 @@ class SocketService {
 
   io.Socket? socket;
   bool _isConnected = false;
+  bool _isConnecting = false;
 
   static const String _tokenKey = 'token'; // Make sure this key is correct
 
@@ -28,10 +29,12 @@ class SocketService {
   Future<void> connect() async {
     debugPrint("⚡ [SocketService] connect() called");
 
-    if (isConnected) {
-      debugPrint("✅ Already connected. Skipping reconnect.");
+    if (isConnected || _isConnecting) {
+      debugPrint("✅ Already connected or connecting. Skipping.");
       return;
     }
+
+    _isConnecting = true;
 
     final prefs = await SharedPreferences.getInstance();
     // TODO: Ensure you are saving the token with this key after login
@@ -58,16 +61,19 @@ class SocketService {
     // --- Listeners (register BEFORE connect)
     socket!.onConnect((_) {
       _isConnected = true;
+      _isConnecting = false;
       debugPrint("✅ Socket connected: ${socket!.id}");
     });
 
     socket!.onConnectError((data) {
       _isConnected = false;
+      _isConnecting = false;
       debugPrint("❌ Socket connect error: $data");
     });
 
     socket!.onError((data) {
       _isConnected = false;
+      _isConnecting = false;
       debugPrint("❌ Socket general error: $data");
     });
 
@@ -244,42 +250,42 @@ class SocketService {
   void _registerVideoCallListeners() {
     if (socket == null) return;
 
+    socket!.off('incomingCall');
     socket!.on('incomingCall', (data) {
       debugPrint("📲 [SocketService] Incoming call => $data");
-      // Broadcast this event to the app
       if (data is Map<String, dynamic>) {
         _incomingCallController.add(data);
       }
     });
 
+    socket!.off('callAccepted');
     socket!.on('callAccepted', (data) {
       debugPrint("✅ [SocketService] Call accepted => $data");
-      // This is handled inside VideoCall.dart, no global broadcast needed
     });
 
+    socket!.off('callRejected');
     socket!.on('callRejected', (data) {
       debugPrint("❌ [SocketService] Call rejected => $data");
-      // This is handled inside VideoCall.dart
     });
 
+    socket!.off('callEnded');
     socket!.on('callEnded', (data) {
       debugPrint("🛑 [SocketService] Call ended => $data");
-      // This is handled inside VideoCall.dart
     });
 
+    socket!.off('offer');
     socket!.on('offer', (data) {
       debugPrint("📩 [SocketService] Received Offer");
-      // This is handled inside VideoCall.dart
     });
 
+    socket!.off('answer');
     socket!.on('answer', (data) {
       debugPrint("📩 [SocketService] Received Answer");
-      // This is handled inside VideoCall.dart
     });
 
+    socket!.off('ice-candidate');
     socket!.on('ice-candidate', (data) {
       debugPrint("📩 [SocketService] Received ICE Candidate");
-      // This is handled inside VideoCall.dart
     });
 
     debugPrint("🎥 [SocketService] Registered all video call listeners");

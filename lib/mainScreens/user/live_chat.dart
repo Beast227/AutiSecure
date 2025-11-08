@@ -81,42 +81,6 @@ class _LiveChat2State extends State<LiveChat2>
   Future<void> _connectAndListen() async {
     try {
       await socketService.connect();
-
-      socketService.socket?.off('incomingCall');
-      socketService.socket?.on('incomingCall', (data) async {
-        debugPrint("📲 [LiveChat2] incomingCall received: $data");
-
-        final conversationId = data['conversationId']?.toString();
-        final callerId =
-            data['callerId']?.toString() ?? data['from']?.toString() ?? '';
-        final callerName = data['callerName']?.toString() ?? 'Caller';
-
-        if (conversationId == null || conversationId.isEmpty) {
-          debugPrint("⚠️ incomingCall missing conversationId, ignoring");
-          return;
-        }
-
-        // OPTIONAL: show a quick ringing UI/dialog or just navigate to VideoCall (which shows ringing)
-        debugPrint(
-          "📞 Navigating to VideoCall (callee). conv:$conversationId from:$callerId",
-        );
-
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder:
-                (context) => VideoCall(
-                  socket: socketService.socket!, // your active socket
-                  callerName: callerName, // caller display name
-                  selfUserId: userId!, // current user (callee)
-                  peerUserId: callerId, // caller user id
-                  conversationId:
-                      conversationId, // conversation id from payload
-                  isCaller: false, // callee
-                ),
-          ),
-        );
-      });
       Future.delayed(const Duration(seconds: 1), () {
         socketService.onMessageReceived(_handleIncomingMessage);
         debugPrint(

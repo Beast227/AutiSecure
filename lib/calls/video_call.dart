@@ -9,7 +9,8 @@ class VideoCall extends StatefulWidget {
   final IO.Socket socket;
   final String callerName;
   final String selfUserId; // string id of current user
-  final String? peerUserId; // string id of peer (callee for caller, caller for callee)
+  final String?
+  peerUserId; // string id of peer (callee for caller, caller for callee)
   final String conversationId; // conversation id (useful for backend)
   final bool isCaller; // true when this client initiated the call
   final String? peerSocketId; // <-- ADDED: Known socket ID of peer (for callee)
@@ -52,41 +53,38 @@ class _VideoCallState extends State<VideoCall> {
     if (!widget.isCaller) {
       // Callee already knows the caller's socket ID
       _peerSocketId = widget.peerSocketId;
-      print("📞 Callee initialized with peerSocketId: $_peerSocketId");
+      debugPrint("📞 Callee initialized with peerSocketId: $_peerSocketId");
+
+      _callState = CallState.connected; // Callee is connected immediately
+      Future.microtask(() => _startLocalMediaAndPeer(asCaller: false));
+    } else {
+      _callState = CallState.ringing; // Caller starts as ringing
     }
 
     _registerSocketHandlers();
-
-    // If this screen was opened by caller, emit initiateCall
-    if (widget.isCaller) {
-      // Don't emit yet. Wait for renderers.
-      Future.microtask(() => _emitInitiateCall());
-    }
   }
 
   Future<void> _initRenderers() async {
     await _localRenderer.initialize();
     await _remoteRenderer.initialize();
-    print("🎛 Renderers initialized");
+    debugPrint("🎛 Renderers initialized");
   }
 
   void _registerSocketHandlers() {
     final s = widget.socket;
 
-    print("🔗 Registering socket handlers in VideoCall (socket id=${s.id})");
+    debugPrint(
+      "🔗 Registering socket handlers in VideoCall (socket id=${s.id})",
+    );
 
-    s.on('incomingCall', (data) {
-      print(
-          "📲 incomingCall (shouldn't normally reach here inside active VideoCall): $data");
-    });
-
+    s.off('callAccepted');
     s.on('callAccepted', (data) async {
-      print("✅ socket callAccepted => $data");
+      debugPrint("✅ socket callAccepted => $data");
       if (!mounted) return;
 
       final conv = data['conversationId']?.toString();
       if (conv != widget.conversationId) {
-        print("ℹ️ callAccepted for other conversation ($conv) - ignoring");
+        debugPrint("ℹ️ callAccepted for other conversation ($conv) - ignoring");
         return;
       }
 
@@ -94,7 +92,9 @@ class _VideoCallState extends State<VideoCall> {
       if (widget.isCaller) {
         final calleeSocketId = data['calleeSocketId']?.toString();
         if (calleeSocketId == null) {
-          print("❌ FATAL: 'calleeSocketId' missing from 'callAccepted' event");
+          debugPrint(
+            "❌ FATAL: 'calleeSocketId' missing from 'callAccepted' event",
+          );
           _showSnack("Call handshake failed. Missing peer ID.");
           _endCallLocal(isError: true);
           return;
@@ -102,7 +102,7 @@ class _VideoCallState extends State<VideoCall> {
         setState(() {
           _peerSocketId = calleeSocketId;
         });
-        print("📞 Caller received calleeSocketId: $_peerSocketId");
+        debugPrint("📞 Caller received calleeSocketId: $_peerSocketId");
       }
       // --- End Caller Logic ---
 
@@ -111,49 +111,55 @@ class _VideoCallState extends State<VideoCall> {
         // Now that we have the _peerSocketId, we can start media and create offer
         await _startLocalMediaAndPeer(asCaller: widget.isCaller);
       } else {
-        print("ℹ️ callAccepted received but call is already connected. Ignoring.");
+        debugPrint(
+          "ℹ️ callAccepted received but call is already connected. Ignoring.",
+        );
       }
     });
 
+    s.off('callRejected');
     s.on('callRejected', (data) {
-      print("❌ socket callRejected => $data");
+      debugPrint("❌ socket callRejected => $data");
       if (!mounted) return;
       _showSnack("Call rejected by peer");
       _endCallLocal();
     });
 
+    s.off('callEnded');
     s.on('callEnded', (data) {
-      print("🛑 socket callEnded => $data");
+      debugPrint("🛑 socket callEnded => $data");
       if (!mounted) return;
       _showSnack("Call ended by peer");
       _endCallLocal();
     });
 
+    s.off('offer');
     s.on('offer', (data) async {
-      print("📩 socket.offer => $data");
+      debugPrint("📩 socket.offer => $data");
       final conv = data['conversationId']?.toString();
       if (conv != widget.conversationId) {
-        print("ℹ️ offer for different conversation ($conv) -> ignore");
+        debugPrint("ℹ️ offer for different conversation ($conv) -> ignore");
         return;
       }
 
       final offer = data['offer'];
       try {
         await _ensurePeerConnection(); // Ensure PC is created
-        
+
         // If local media not started yet (callee), start local media
         if (_localStream == null) {
           await _startLocalMediaAndPeer(asCaller: false);
         }
-        
-        await _pc!
-            .setRemoteDescription(RTCSessionDescription(offer['sdp'], offer['type']));
-        print("✅ Remote offer set, creating answer...");
+
+        await _pc!.setRemoteDescription(
+          RTCSessionDescription(offer['sdp'], offer['type']),
+        );
+        debugPrint("✅ Remote offer set, creating answer...");
         final answer = await _pc!.createAnswer();
         await _pc!.setLocalDescription(answer);
 
         if (_peerSocketId == null) {
-          print("❌ Cannot send answer, peerSocketId is null");
+          debugPrint("❌ Cannot send answer, peerSocketId is null");
           return;
         }
 
@@ -162,38 +168,43 @@ class _VideoCallState extends State<VideoCall> {
           'answer': answer.toMap(),
           'to': _peerSocketId, // <-- UPDATED: Use socket ID
         });
-        print("📤 Sent answer to $_peerSocketId");
+        debugPrint("📤 Sent answer to $_peerSocketId");
       } catch (e, st) {
-        print("❌ Error handling offer: $e\n$st");
+        debugPrint("❌ Error handling offer: $e\n$st");
       }
     });
 
+    s.off('answer');
     s.on('answer', (data) async {
-      print("📩 socket.answer => $data");
+      debugPrint("📩 socket.answer => $data");
       final conv = data['conversationId']?.toString();
       if (conv != widget.conversationId) {
-        print("ℹ️ answer for different conversation ($conv) -> ignore");
+        debugPrint("ℹ️ answer for different conversation ($conv) -> ignore");
         return;
       }
       final answer = data['answer'];
       try {
-        await _pc
-            ?.setRemoteDescription(RTCSessionDescription(answer['sdp'], answer['type']));
-        print("✅ Remote answer applied");
+        await _pc?.setRemoteDescription(
+          RTCSessionDescription(answer['sdp'], answer['type']),
+        );
+        debugPrint("✅ Remote answer applied");
       } catch (e) {
-        print("❌ Error applying remote answer: $e");
+        debugPrint("❌ Error applying remote answer: $e");
       }
     });
 
+    s.off('ice-candidate');
     s.on('ice-candidate', (data) async {
       final conv = data['conversationId']?.toString();
       if (conv != widget.conversationId) {
-        print("ℹ️ ice-candidate for different conversation ($conv) -> ignore");
+        debugPrint(
+          "ℹ️ ice-candidate for different conversation ($conv) -> ignore",
+        );
         return;
       }
       final candidateMap = data['candidate'];
       if (candidateMap == null) return;
-      
+
       // Wait for PC to be created
       await _ensurePeerConnection();
 
@@ -204,13 +215,13 @@ class _VideoCallState extends State<VideoCall> {
           candidateMap['sdpMLineIndex'],
         );
         await _pc?.addCandidate(cand);
-        print("🧊 Added remote ICE candidate");
+        debugPrint("🧊 Added remote ICE candidate");
       } catch (e) {
-        print("❌ Error adding remote ICE candidate: $e");
+        debugPrint("❌ Error adding remote ICE candidate: $e");
       }
     });
 
-    print("🎥 Socket handlers registered");
+    debugPrint("🎥 Socket handlers registered");
   }
 
   Future<void> _emitInitiateCall() async {
@@ -221,23 +232,25 @@ class _VideoCallState extends State<VideoCall> {
         'to': widget.peerUserId,
         'callerName': widget.callerName,
       };
-      print("📞 Emitting initiateCall => $payload");
+      debugPrint("📞 Emitting initiateCall => $payload");
       widget.socket.emit('initiateCall', payload);
     } catch (e) {
-      print("⚠️ Failed to emit initiateCall: $e");
+      debugPrint("⚠️ Failed to emit initiateCall: $e");
     }
   }
 
   Future<void> _startLocalMediaAndPeer({required bool asCaller}) async {
     if (_localMediaStarted) {
       // --- THIS WAS THE LINE WITH THE ERROR ---
-      print("ℹ️ _startLocalMediaAndPeer: Media already started, skipping.");
+      debugPrint(
+        "ℹ️ _startLocalMediaAndPeer: Media already started, skipping.",
+      );
       // --- END FIX ---
       return; // <-- FIX for addTrack error
     }
     _localMediaStarted = true; // <-- FIX for addTrack error
 
-    print("🎬 startLocalMediaAndPeer(asCaller=$asCaller)");
+    debugPrint("🎬 startLocalMediaAndPeer(asCaller=$asCaller)");
     try {
       // 1) start local media
       final constraints = {
@@ -247,7 +260,9 @@ class _VideoCallState extends State<VideoCall> {
       final stream = await navigator.mediaDevices.getUserMedia(constraints);
       _localStream = stream;
       _localRenderer.srcObject = _localStream;
-      print("✅ Local stream started, tracks: ${_localStream!.getTracks().length}");
+      debugPrint(
+        "✅ Local stream started, tracks: ${_localStream!.getTracks().length}",
+      );
 
       // 2) create peer connection
       await _ensurePeerConnection();
@@ -255,18 +270,20 @@ class _VideoCallState extends State<VideoCall> {
       // 3) Add local tracks
       _localStream?.getTracks().forEach((track) {
         try {
-          print("🛤️ Adding track: ${track.kind}");
+          debugPrint("🛤️ Adding track: ${track.kind}");
           _pc?.addTrack(track, _localStream!);
         } catch (e) {
           // This catch is important if addTrack is called multiple times
-          print("⚠️ Error adding track (ignoring): $e");
+          debugPrint("⚠️ Error adding track (ignoring): $e");
         }
       });
 
       // 4) if caller, create offer and send
       if (asCaller) {
         if (_peerSocketId == null) {
-          print("❌ FATAL: _startLocalMediaAndPeer called for CALLER but peerSocketId is null.");
+          debugPrint(
+            "❌ FATAL: _startLocalMediaAndPeer called for CALLER but peerSocketId is null.",
+          );
           _showSnack("Call connection failed (Peer ID missing)");
           _endCallLocal(isError: true);
           return;
@@ -278,12 +295,12 @@ class _VideoCallState extends State<VideoCall> {
           'offer': offer.toMap(),
           'to': _peerSocketId, // <-- UPDATED
         });
-        print("📤 Offer sent to $_peerSocketId");
+        debugPrint("📤 Offer sent to $_peerSocketId");
       } else {
-        print("⏳ Callee: waiting for remote offer...");
+        debugPrint("⏳ Callee: waiting for remote offer...");
       }
     } catch (e, st) {
-      print("❌ Error in startLocalMediaAndPeer: $e\n$st");
+      debugPrint("❌ Error in startLocalMediaAndPeer: $e\n$st");
       _showSnack("Failed to start camera/mic");
       _endCallLocal(isError: true);
     }
@@ -291,12 +308,12 @@ class _VideoCallState extends State<VideoCall> {
 
   Future<void> _ensurePeerConnection() async {
     if (_pc != null) return;
-    print("🔧 Creating RTCPeerConnection...");
+    debugPrint("🔧 Creating RTCPeerConnection...");
     final config = {
       'iceServers': [
         {'urls': 'stun:stun.l.google.com:19302'},
         // add TURN servers for production
-      ]
+      ],
     };
 
     _pc = await createPeerConnection(config);
@@ -305,13 +322,15 @@ class _VideoCallState extends State<VideoCall> {
       if (candidate == null) return;
 
       if (_peerSocketId == null) {
-        print("⚠️ Cannot send ICE candidate, _peerSocketId is null. Queuing.");
+        debugPrint(
+          "⚠️ Cannot send ICE candidate, _peerSocketId is null. Queuing.",
+        );
         // We might get candidates before the peer accepts.
         // A more robust solution would queue them.
         return;
       }
       final candidateObj = candidate.toMap();
-      print("📤 onIceCandidate -> emit to $_peerSocketId: $candidateObj");
+      debugPrint("📤 onIceCandidate -> emit to $_peerSocketId: $candidateObj");
       widget.socket.emit('ice-candidate', {
         'conversationId': widget.conversationId,
         'candidate': candidateObj,
@@ -320,28 +339,28 @@ class _VideoCallState extends State<VideoCall> {
     };
 
     _pc!.onTrack = (RTCTrackEvent event) {
-      print("🎧 onTrack event, streams: ${event.streams.length}");
+      debugPrint("🎧 onTrack event, streams: ${event.streams.length}");
       if (event.streams.isNotEmpty) {
         _remoteRenderer.srcObject = event.streams.first;
-        print("✅ Remote stream attached to renderer");
+        debugPrint("✅ Remote stream attached to renderer");
       }
     };
 
     _pc!.onConnectionState = (state) {
-      print("🔁 PeerConnection state changed: $state");
+      debugPrint("🔁 PeerConnection state changed: $state");
       if (state == RTCPeerConnectionState.RTCPeerConnectionStateFailed ||
           state == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected) {
-        print("🛑 Peer connection failed or disconnected.");
+        debugPrint("🛑 Peer connection failed or disconnected.");
         _endCallLocal();
       }
     };
 
-    print("✅ PeerConnection created");
+    debugPrint("✅ PeerConnection created");
   }
 
   void _toggleMute() {
     if (_localStream == null) {
-      print("⚠️ toggleMute: no local stream");
+      debugPrint("⚠️ toggleMute: no local stream");
       return;
     }
     final aud = _localStream!.getAudioTracks();
@@ -349,12 +368,12 @@ class _VideoCallState extends State<VideoCall> {
     final enabled = !aud.first.enabled;
     for (var t in aud) t.enabled = enabled;
     setState(() => _isMuted = !enabled);
-    print(_isMuted ? "🔇 Muted" : "🎙️ Unmuted");
+    debugPrint(_isMuted ? "🔇 Muted" : "🎙️ Unmuted");
   }
 
   void _toggleVideo() {
     if (_localStream == null) {
-      print("⚠️ toggleVideo: no local stream");
+      debugPrint("⚠️ toggleVideo: no local stream");
       return;
     }
     final vids = _localStream!.getVideoTracks();
@@ -362,13 +381,13 @@ class _VideoCallState extends State<VideoCall> {
     final enabled = !vids.first.enabled;
     for (var t in vids) t.enabled = enabled;
     setState(() => _isVideoOff = !enabled);
-    print(_isVideoOff ? "📷 OFF" : "📷 ON");
+    debugPrint(_isVideoOff ? "📷 OFF" : "📷 ON");
   }
 
   Future<void> _cleanup() async {
     if (_cleanupDone) return;
     _cleanupDone = true;
-    print("🧹 Cleanup starting...");
+    debugPrint("🧹 Cleanup starting...");
 
     try {
       try {
@@ -377,7 +396,7 @@ class _VideoCallState extends State<VideoCall> {
         _pc?.onConnectionState = null;
         await _pc?.close();
       } catch (e) {
-        print("⚠️ error closing pc: $e");
+        debugPrint("⚠️ error closing pc: $e");
       }
       _pc = null;
 
@@ -394,7 +413,7 @@ class _VideoCallState extends State<VideoCall> {
           _localStream = null;
         }
       } catch (e) {
-        print("⚠️ error disposing local stream: $e");
+        debugPrint("⚠️ error disposing local stream: $e");
       }
 
       try {
@@ -411,10 +430,10 @@ class _VideoCallState extends State<VideoCall> {
         await _remoteRenderer.dispose();
       } catch (_) {}
     } catch (e) {
-      print("❌ cleanup error: $e");
+      debugPrint("❌ cleanup error: $e");
     }
     _localMediaStarted = false;
-    print("✅ Cleanup done");
+    debugPrint("✅ Cleanup done");
   }
 
   Future<void> _endCallLocal({bool isError = false}) async {
@@ -425,17 +444,18 @@ class _VideoCallState extends State<VideoCall> {
         // Only emit 'endCall' or 'cancelCall' if it's a user action, not an error cleanup
         if (_peerSocketId != null) {
           // Call is connected or ringing and peer has accepted
-          print("📤 endCall emitted to $_peerSocketId");
+          debugPrint("📤 endCall emitted to $_peerSocketId");
           widget.socket.emit('endCall', {
             'conversationId': widget.conversationId,
             'to': _peerSocketId, // <-- UPDATED
           });
         } else if (widget.isCaller && _callState == CallState.ringing) {
           // Caller is hanging up while ringing
-          print("🚫 Emitting cancelCall to user ${widget.peerUserId}");
+          debugPrint("🚫 Emitting cancelCall to user ${widget.peerUserId}");
           widget.socket.emit('cancelCall', {
             'conversationId': widget.conversationId,
-            'toUserId': widget.peerUserId, // Use the User ID (server must handle this)
+            'toUserId':
+                widget.peerUserId, // Use the User ID (server must handle this)
           });
         }
       }
@@ -445,13 +465,13 @@ class _VideoCallState extends State<VideoCall> {
 
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
-      print("❌ endCallLocal error: $e");
+      debugPrint("❌ endCallLocal error: $e");
     }
   }
 
   @override
   void dispose() {
-    print("🧹 VideoCall.dispose - removing socket handlers");
+    debugPrint("🧹 VideoCall.dispose - removing socket handlers");
     try {
       widget.socket.off('incomingCall');
       widget.socket.off('callAccepted');
@@ -461,14 +481,14 @@ class _VideoCallState extends State<VideoCall> {
       widget.socket.off('answer');
       widget.socket.off('ice-candidate');
     } catch (_) {}
-    
+
     // Ensure cleanup is called, especially if _endCallLocal wasn't
     if (_callState != CallState.ended) {
       _endCallLocal();
     } else {
       _cleanup(); // Just in case
     }
-    
+
     super.dispose();
   }
 
@@ -478,7 +498,10 @@ class _VideoCallState extends State<VideoCall> {
       child: SizedBox(
         width: MediaQuery.of(context).size.width,
         height: MediaQuery.of(context).size.height,
-        child: RTCVideoView(_remoteRenderer, mirror: true), // Mirror remote view
+        child: RTCVideoView(
+          _remoteRenderer,
+          mirror: true,
+        ), // Mirror remote view
       ),
     );
   }
@@ -489,13 +512,15 @@ class _VideoCallState extends State<VideoCall> {
       height: 160,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
-        child: _localStream != null
-            ? RTCVideoView(_localRenderer, mirror: true)
-            : Container(
-                color: Colors.grey.shade900,
-                child: const Center(
-                    child: Icon(Icons.person, color: Colors.white)),
-              ),
+        child:
+            _localStream != null
+                ? RTCVideoView(_localRenderer, mirror: true)
+                : Container(
+                  color: Colors.grey.shade900,
+                  child: const Center(
+                    child: Icon(Icons.person, color: Colors.white),
+                  ),
+                ),
       ),
     );
   }
@@ -514,31 +539,40 @@ class _VideoCallState extends State<VideoCall> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text("📞 Calling ${widget.callerName}...",
-                  style: const TextStyle(color: Colors.white, fontSize: 20)),
+              Text(
+                "📞 Calling ${widget.callerName}...",
+                style: const TextStyle(color: Colors.white, fontSize: 20),
+              ),
               const SizedBox(height: 24),
               const CircularProgressIndicator(color: Colors.white),
               const SizedBox(height: 24),
-              Text("Waiting for peer to accept...",
-                  style: const TextStyle(color: Colors.white70)),
+              Text(
+                "Waiting for peer to accept...",
+                style: const TextStyle(color: Colors.white70),
+              ),
             ],
           ),
         );
         break;
       case CallState.connected:
-        bodyContent = Stack(children: [
-          _buildRemoteViewCover(),
-          Positioned(
-            left: 16, 
-            bottom: 120, // Position above controls
-            child: _buildLocalPreview()
-          ),
-        ]);
+        bodyContent = Stack(
+          children: [
+            _buildRemoteViewCover(),
+            Positioned(
+              left: 16,
+              bottom: 120, // Position above controls
+              child: _buildLocalPreview(),
+            ),
+          ],
+        );
         break;
       case CallState.ended:
         bodyContent = const Center(
-            child: Text("Call ended",
-                style: TextStyle(color: Colors.white, fontSize: 20)));
+          child: Text(
+            "Call ended",
+            style: TextStyle(color: Colors.white, fontSize: 20),
+          ),
+        );
         // Pop after a delay
         Future.delayed(Duration(seconds: 1), () {
           if (mounted) Navigator.of(context).pop();
@@ -553,40 +587,49 @@ class _VideoCallState extends State<VideoCall> {
           Positioned.fill(child: bodyContent),
           if (_callState == CallState.connected)
             Positioned(
-                top: 52,
-                left: 16,
-                child: Text(widget.callerName,
-                    style: const TextStyle(color: Colors.white, fontSize: 20))),
-          
+              top: 52,
+              left: 16,
+              child: Text(
+                widget.callerName,
+                style: const TextStyle(color: Colors.white, fontSize: 20),
+              ),
+            ),
+
           // Always show controls unless ended
           if (_callState != CallState.ended)
             Positioned(
               bottom: 32,
               left: 0,
               right: 0,
-              child:
-                  Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-                FloatingActionButton(
-                  heroTag: 'mic',
-                  backgroundColor: _isMuted ? Colors.red : Colors.white,
-                  onPressed: _toggleMute,
-                  child: Icon(_isMuted ? Icons.mic_off : Icons.mic,
-                      color: _isMuted ? Colors.white : Colors.black),
-                ),
-                FloatingActionButton(
-                  heroTag: 'end',
-                  backgroundColor: Colors.red,
-                  onPressed: () => _endCallLocal(isError: false),
-                  child: const Icon(Icons.call_end),
-                ),
-                FloatingActionButton(
-                  heroTag: 'cam',
-                  backgroundColor: _isVideoOff ? Colors.red : Colors.white,
-                  onPressed: _toggleVideo,
-                  child: Icon(_isVideoOff ? Icons.videocam_off : Icons.videocam,
-                      color: _isVideoOff ? Colors.white : Colors.black),
-                ),
-              ]),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  FloatingActionButton(
+                    heroTag: 'mic',
+                    backgroundColor: _isMuted ? Colors.red : Colors.white,
+                    onPressed: _toggleMute,
+                    child: Icon(
+                      _isMuted ? Icons.mic_off : Icons.mic,
+                      color: _isMuted ? Colors.white : Colors.black,
+                    ),
+                  ),
+                  FloatingActionButton(
+                    heroTag: 'end',
+                    backgroundColor: Colors.red,
+                    onPressed: () => _endCallLocal(isError: false),
+                    child: const Icon(Icons.call_end),
+                  ),
+                  FloatingActionButton(
+                    heroTag: 'cam',
+                    backgroundColor: _isVideoOff ? Colors.red : Colors.white,
+                    onPressed: _toggleVideo,
+                    child: Icon(
+                      _isVideoOff ? Icons.videocam_off : Icons.videocam,
+                      color: _isVideoOff ? Colors.white : Colors.black,
+                    ),
+                  ),
+                ],
+              ),
             ),
         ],
       ),
