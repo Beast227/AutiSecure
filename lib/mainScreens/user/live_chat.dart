@@ -82,6 +82,41 @@ class _LiveChat2State extends State<LiveChat2>
     try {
       await socketService.connect();
 
+      socketService.socket?.off('incomingCall');
+      socketService.socket?.on('incomingCall', (data) async {
+        debugPrint("📲 [LiveChat2] incomingCall received: $data");
+
+        final conversationId = data['conversationId']?.toString();
+        final callerId =
+            data['callerId']?.toString() ?? data['from']?.toString() ?? '';
+        final callerName = data['callerName']?.toString() ?? 'Caller';
+
+        if (conversationId == null || conversationId.isEmpty) {
+          debugPrint("⚠️ incomingCall missing conversationId, ignoring");
+          return;
+        }
+
+        // OPTIONAL: show a quick ringing UI/dialog or just navigate to VideoCall (which shows ringing)
+        debugPrint(
+          "📞 Navigating to VideoCall (callee). conv:$conversationId from:$callerId",
+        );
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder:
+                (context) => VideoCall(
+                  socket: socketService.socket!, // your active socket
+                  callerName: callerName, // caller display name
+                  selfUserId: userId!, // current user (callee)
+                  peerUserId: callerId, // caller user id
+                  conversationId:
+                      conversationId, // conversation id from payload
+                  isCaller: false, // callee
+                ),
+          ),
+        );
+      });
       Future.delayed(const Duration(seconds: 1), () {
         socketService.onMessageReceived(_handleIncomingMessage);
         debugPrint(
@@ -385,20 +420,77 @@ class _LiveChat2State extends State<LiveChat2>
                   size: 28,
                 ),
                 onPressed: () {
+                  debugPrint("📞 [LiveChat2] Video button pressed");
+
+                  if (selectedConversationId == null || userId == null) {
+                    _showSnackBar("No conversation selected.", isError: true);
+                    return;
+                  }
+
+                  // Try to find peer id & name from conversations list
+                  String? peerId;
+                  String peerName =
+                      selectedUser.isNotEmpty ? selectedUser : "Unknown";
+
+                  try {
+                    final convo = conversations.firstWhere(
+                      (c) => c['_id'] == selectedConversationId,
+                    );
+                    final participants = (convo['participants'] ?? []) as List;
+                    final peer = participants.firstWhere(
+                      (p) => p['id'].toString() != userId.toString(),
+                      orElse: () => null,
+                    );
+                    if (peer != null) {
+                      peerId = peer['id']?.toString();
+                      peerName = peer['name'] ?? peerName;
+                    }
+                  } catch (e) {
+                    debugPrint(
+                      "⚠️ Could not resolve peer from conversation: $e",
+                    );
+                  }
+
+                  if (peerId == null || peerId.isEmpty) {
+                    _showSnackBar(
+                      "Could not determine call recipient.",
+                      isError: true,
+                    );
+                    return;
+                  }
+
+                  // emit initiateCall with required fields
+                  debugPrint(
+                    "📤 Emitting initiateCall from $userId -> $peerId for convo $selectedConversationId",
+                  );
+                  socketService.socket?.emit('initiateCall', {
+                    'conversationId': selectedConversationId,
+                    'from': userId,
+                    'to': peerId,
+                    'callerName':
+                        peerName, // you can replace with actual caller name if you have it stored
+                  });
+
+                  // navigate to VideoCall (caller)
                   Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder:
                           (context) => VideoCall(
-                            callerName: selectedUser, // name to show on top
-                            selfUserId: userId!, // current user ID (from JWT)
-                            peerUserId: selectedConversationId!, // receiver ID
+                            socket:
+                                socketService.socket!, // pass socket instance
+                            callerName: peerName, // shown on top
+                            selfUserId: userId!, // current user id (caller)
+                            peerUserId: peerId, // callee user id
+                            conversationId:
+                                selectedConversationId!, // conversation id
+                            isCaller: true, // caller role
                           ),
                     ),
                   );
                 },
+                tooltip: "Video Call",
               ),
-
               IconButton(
                 icon: const Icon(
                   Icons.call_rounded,

@@ -1,6 +1,7 @@
-// LiveChat2.dart
+import 'dart:async'; // <-- ADDED
 import 'dart:convert';
 import 'dart:io';
+import 'package:autisecure/calls/incoming_call.dart';
 import 'package:autisecure/services/api_service.dart';
 import 'package:autisecure/login_signup/login_screen.dart';
 import 'package:flutter/material.dart';
@@ -11,6 +12,10 @@ import 'package:image_picker/image_picker.dart';
 
 // Import the SocketService
 import 'package:autisecure/services/socket_service.dart';
+
+// --- ADD THESE IMPORTS ---
+import 'package:autisecure/calls/video_call.dart'; // Import your VideoCall screen
+// --- END IMPORTS ---
 
 class LiveChat2 extends StatefulWidget {
   const LiveChat2({super.key});
@@ -32,6 +37,7 @@ class _LiveLiveChat2State extends State<LiveChat2>
   String? userId;
   String? userRole;
   String? selectedConversationId;
+  Map<String, dynamic>? _currentPeer; // <-- ADDED
   List conversations = [];
   List messages = [];
   List<Map<String, dynamic>> approvedAppointments = [];
@@ -40,6 +46,8 @@ class _LiveLiveChat2State extends State<LiveChat2>
 
   final TextEditingController messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+
+  StreamSubscription? _callSubscription; // <-- ADDED
 
   static const String _pendingCacheKey = 'pendingAppointmentsCache';
   static const String _approvedCacheKey = 'approvedAppointmentsCache';
@@ -58,6 +66,7 @@ class _LiveLiveChat2State extends State<LiveChat2>
   void dispose() {
     messageController.dispose();
     _scrollController.dispose();
+    _callSubscription?.cancel(); // <-- ADDED
     socketService.offMessageReceived(_handleIncomingMessage);
     socketService.disconnect();
     super.dispose();
@@ -76,6 +85,7 @@ class _LiveLiveChat2State extends State<LiveChat2>
     }
 
     await _connectAndListen();
+    _listenForIncomingCalls(); // <-- ADDED
 
     await Future.wait([_loadConversations(), _loadAppointments()]);
 
@@ -93,6 +103,67 @@ class _LiveLiveChat2State extends State<LiveChat2>
     } catch (e) {
       debugPrint("❌ Failed to connect socket: $e");
       _showSnackBar("Real-time connection failed.", isError: true);
+    }
+  }
+
+  // --- ADDED: Handles incoming call events from SocketService ---
+  void _listenForIncomingCalls() {
+    _callSubscription =
+        socketService.incomingCallStream.listen(_handleIncomingCall);
+    debugPrint("📞 [LiveChat2_Doctor] Listening for incoming calls...");
+  }
+
+  // --- ADDED: Shows the IncomingCallScreen ---
+  Future<void> _handleIncomingCall(Map<String, dynamic> data) async {
+    debugPrint("📲 [LiveChat2_Doctor] Handling incoming call: $data");
+    if (!mounted) return;
+
+    final String conversationId = data['conversationId']?.toString() ?? '';
+    final String callerName =
+        data['callerName']?.toString() ?? 'Unknown Caller';
+    final String callerId = data['callerId']?.toString() ?? '';
+    final String callerSocketId = data['callerSocketId']?.toString() ?? '';
+
+    if (conversationId.isEmpty || callerId.isEmpty || callerSocketId.isEmpty) {
+      debugPrint("❌ Incoming call data is incomplete. Ignoring.");
+      return;
+    }
+
+    // Show the incoming call screen
+    final bool? didAccept = await Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (context) => IncomingCallScreen(
+          callerName: callerName,
+          conversationId: conversationId,
+          data: data,
+        ),
+      ),
+    );
+
+    if (didAccept == true) {
+      // User accepted
+      debugPrint("✅ Call accepted by user.");
+      socketService.acceptCall(conversationId, callerSocketId);
+
+      // Navigate to the VideoCall screen as the CALLEE
+      if (!mounted) return;
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => VideoCall(
+            socket: socketService.socket!,
+            callerName: callerName, // Name of the person who called
+            selfUserId: userId!,
+            peerUserId: callerId,
+            conversationId: conversationId,
+            isCaller: false,
+          ),
+        ),
+      );
+    } else {
+      // User rejected
+      debugPrint("❌ Call rejected by user.");
+      socketService.rejectCall(conversationId, callerSocketId);
     }
   }
 
@@ -161,6 +232,7 @@ class _LiveLiveChat2State extends State<LiveChat2>
   }
 
   Future<void> _loadConversations({bool forceRefresh = false}) async {
+    // ... existing logic (no changes needed) ...
     final prefs = await SharedPreferences.getInstance();
     String? cachedDataString;
 
@@ -212,6 +284,7 @@ class _LiveLiveChat2State extends State<LiveChat2>
   }
 
   Future<void> _loadAppointments({bool forceRefresh = false}) async {
+    // ... existing logic (no changes needed) ...
     final prefs = await SharedPreferences.getInstance();
 
     // 1️⃣ Load cached data if not forcing refresh
@@ -290,6 +363,7 @@ class _LiveLiveChat2State extends State<LiveChat2>
   }
 
   Future<void> _loadMessages() async {
+    // ... existing logic (no changes needed) ...
     if (selectedConversationId == null) return;
     try {
       final data = await ApiService.fetchMessages(selectedConversationId!);
@@ -318,19 +392,19 @@ class _LiveLiveChat2State extends State<LiveChat2>
     final List participants = conversation["participants"] ?? [];
     final otherUser = participants.firstWhere(
       (p) => p is Map && p["id"] != userId,
-      orElse:
-          () =>
-              participants.isNotEmpty && participants.first is Map
-                  ? participants.first
-                  : {"name": "Unknown"},
+      orElse: () => participants.isNotEmpty && participants.first is Map
+          ? participants.first
+          : {"name": "Unknown"},
     );
     selectedUser = otherUser["name"] ?? "Unknown User";
+    _currentPeer = otherUser; // <-- ADDED: Store the peer's info
 
     setState(() => isChatOpen = true);
     await _loadMessages();
   }
 
   Future<void> _sendMessage() async {
+    // ... existing logic (no changes needed) ...
     final text = messageController.text.trim();
     if (text.isEmpty || selectedConversationId == null || userId == null)
       return;
@@ -373,7 +447,54 @@ class _LiveLiveChat2State extends State<LiveChat2>
     }
   }
 
+  // --- ADDED: Method to start the video call ---
+  Future<void> _startVideoCall() async {
+    if (selectedConversationId == null ||
+        userId == null ||
+        _currentPeer == null) {
+      _showSnackBar("Cannot start call. Chat not fully loaded.", isError: true);
+      return;
+    }
+
+    final String peerUserId = _currentPeer!['id']?.toString() ?? '';
+    final String peerName = _currentPeer!['name']?.toString() ?? 'Peer';
+    // TODO: You should fetch the current doctor's name and pass it as 'callerName'
+    // For now, we'll use a placeholder.
+    final String selfName = "Doctor";
+
+    if (peerUserId.isEmpty) {
+      _showSnackBar("Cannot start call. Peer ID is missing.", isError: true);
+      return;
+    }
+
+    debugPrint("📞 Initiating call to $peerName ($peerUserId)");
+
+    // 1. Emit initiateCall (sends notification to peer)
+    socketService.initiateCall(
+      conversationId: selectedConversationId!,
+      fromUserId: userId!,
+      toUserId: peerUserId,
+      callerName: selfName, // This is YOUR name
+    );
+
+    // 2. Navigate to VideoCall screen as the CALLER
+    if (!mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => VideoCall(
+          socket: socketService.socket!,
+          callerName: peerName, // Name of the person we are calling
+          selfUserId: userId!,
+          peerUserId: peerUserId,
+          conversationId: selectedConversationId!,
+          isCaller: true,
+        ),
+      ),
+    );
+  }
+
   Future<void> _logOut() async {
+    // ... existing logic (no changes needed) ...
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenKey);
     await prefs.remove(_roleKey);
@@ -395,8 +516,8 @@ class _LiveLiveChat2State extends State<LiveChat2>
   // ===========================
   // Appointments modal & approval
   // ===========================
-
   void _showAppointmentsSheet() async {
+    // ... existing logic (no changes needed) ...
     showModalBottomSheet(
       // ignore: use_build_context_synchronously
       context: context,
@@ -432,8 +553,8 @@ class _LiveLiveChat2State extends State<LiveChat2>
                   req['description'] ?? 'No description provided';
               final String appointmentId =
                   req['appointmentId']?.toString() ??
-                  req['_id']?.toString() ??
-                  '';
+                      req['_id']?.toString() ??
+                      '';
 
               return Card(
                 color: approved ? Colors.green.shade50 : Colors.orange.shade50,
@@ -478,24 +599,24 @@ class _LiveLiveChat2State extends State<LiveChat2>
                   trailing:
                       approved
                           ? Icon(
-                            Icons.check_circle_outline,
-                            color: Colors.green.shade600,
-                            size: 28,
-                          )
+                              Icons.check_circle_outline,
+                              color: Colors.green.shade600,
+                              size: 28,
+                            )
                           : Icon(
-                            Icons.pending_actions_outlined,
-                            color: Colors.orange.shade700,
-                            size: 28,
-                          ),
+                              Icons.pending_actions_outlined,
+                              color: Colors.orange.shade700,
+                              size: 28,
+                            ),
                   onTap:
                       approved || appointmentId.isEmpty
                           ? null
                           : () async {
-                            final result = await _showApprovalForm(req);
-                            if (result == true) {
-                              await refreshLists(); // ✅ always reload both lists
-                            }
-                          },
+                              final result = await _showApprovalForm(req);
+                              if (result == true) {
+                                await refreshLists(); // ✅ always reload both lists
+                              }
+                            },
                 ),
               );
             }
@@ -610,6 +731,7 @@ class _LiveLiveChat2State extends State<LiveChat2>
   }
 
   Future<bool?> _showApprovalForm(Map<String, dynamic> request) async {
+    // ... existing logic (no changes needed) ...
     DateTime? date;
     TimeOfDay? start;
     TimeOfDay? end;
@@ -617,8 +739,8 @@ class _LiveLiveChat2State extends State<LiveChat2>
 
     final String appointmentId =
         request['appointmentId']?.toString() ??
-        request['_id']?.toString() ??
-        '';
+            request['_id']?.toString() ??
+            '';
 
     if (appointmentId.isEmpty) {
       _showSnackBar("Cannot approve: Missing appointment ID.", isError: true);
@@ -769,13 +891,12 @@ class _LiveLiveChat2State extends State<LiveChat2>
                               label: const Text("Reject"),
                               onPressed: () async {
                                 setApprovalModalState(
-                                  () => isProcessing = true,
-                                );
+                                    () => isProcessing = true);
                                 try {
                                   final success =
                                       await ApiService.rejectAppointment(
-                                        appointmentId,
-                                      );
+                                    appointmentId,
+                                  );
                                   if (success) {
                                     _showSnackBar(
                                       "Appointment rejected",
@@ -793,8 +914,7 @@ class _LiveLiveChat2State extends State<LiveChat2>
                                 } finally {
                                   if (mounted) {
                                     setApprovalModalState(
-                                      () => isProcessing = false,
-                                    );
+                                        () => isProcessing = false);
                                   }
                                 }
                               },
@@ -831,18 +951,17 @@ class _LiveLiveChat2State extends State<LiveChat2>
                                   return;
                                 }
                                 setApprovalModalState(
-                                  () => isProcessing = true,
-                                );
+                                    () => isProcessing = true);
                                 try {
                                   final success =
                                       await ApiService.approveAppointment(
-                                        requestId: appointmentId,
-                                        date: DateFormat(
-                                          'yyyy-MM-dd',
-                                        ).format(date!),
-                                        startTime: start!.format(context),
-                                        endTime: end!.format(context),
-                                      );
+                                    requestId: appointmentId,
+                                    date: DateFormat(
+                                      'yyyy-MM-dd',
+                                    ).format(date!),
+                                    startTime: start!.format(context),
+                                    endTime: end!.format(context),
+                                  );
                                   if (success) {
                                     _showSnackBar("Appointment approved");
                                     Navigator.pop(context, true);
@@ -860,8 +979,7 @@ class _LiveLiveChat2State extends State<LiveChat2>
                                 } finally {
                                   if (mounted) {
                                     setApprovalModalState(
-                                      () => isProcessing = false,
-                                    );
+                                        () => isProcessing = false);
                                   }
                                 }
                               },
@@ -898,6 +1016,7 @@ class _LiveLiveChat2State extends State<LiveChat2>
     required String label,
     required VoidCallback onPressed,
   }) {
+    // ... existing logic (no changes needed) ...
     return OutlinedButton.icon(
       onPressed: onPressed,
       icon: Icon(icon, color: Colors.orange.shade700, size: 20),
@@ -915,7 +1034,7 @@ class _LiveLiveChat2State extends State<LiveChat2>
     );
   }
 
-  // Chat window and chat list UI (unchanged aside minor improvements)
+  // Chat window and chat list UI
   Widget _buildChatWindow() {
     return Column(
       children: [
@@ -943,7 +1062,10 @@ class _LiveLiveChat2State extends State<LiveChat2>
           child: Row(
             children: [
               IconButton(
-                onPressed: () => setState(() => isChatOpen = false),
+                onPressed: () => setState(() {
+                  isChatOpen = false;
+                  _currentPeer = null; // <-- MODIFIED: Clear the peer
+                }),
                 icon: const Icon(
                   Icons.arrow_back_ios_new,
                   color: Colors.white,
@@ -983,11 +1105,7 @@ class _LiveLiveChat2State extends State<LiveChat2>
                   color: Colors.white,
                   size: 28,
                 ),
-                onPressed:
-                    () => _showSnackBar(
-                      "Video call not implemented yet.",
-                      isError: true,
-                    ),
+                onPressed: _startVideoCall, // <-- MODIFIED
                 tooltip: "Video Call",
               ),
               IconButton(
@@ -996,11 +1114,10 @@ class _LiveLiveChat2State extends State<LiveChat2>
                   color: Colors.white,
                   size: 24,
                 ),
-                onPressed:
-                    () => _showSnackBar(
-                      "Audio call not implemented yet.",
-                      isError: true,
-                    ),
+                onPressed: () => _showSnackBar(
+                  "Audio call not implemented yet.",
+                  isError: true,
+                ),
                 tooltip: "Audio Call",
               ),
             ],
@@ -1010,112 +1127,112 @@ class _LiveLiveChat2State extends State<LiveChat2>
           child:
               messages.isEmpty
                   ? const Center(
-                    child: Text(
-                      "No messages yet. Start chatting!",
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  )
+                      child: Text(
+                        "No messages yet. Start chatting!",
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    )
                   : ListView.builder(
-                    controller: _scrollController,
-                    reverse: true,
-                    itemCount: messages.length,
-                    padding: const EdgeInsets.all(12),
-                    itemBuilder: (context, index) {
-                      final msg = messages[index];
-                      if (msg == null ||
-                          msg is! Map ||
-                          msg["message"] == null ||
-                          msg["sender"] == null) {
-                        return const SizedBox.shrink();
-                      }
+                      controller: _scrollController,
+                      reverse: true,
+                      itemCount: messages.length,
+                      padding: const EdgeInsets.all(12),
+                      itemBuilder: (context, index) {
+                        final msg = messages[index];
+                        if (msg == null ||
+                            msg is! Map ||
+                            msg["message"] == null ||
+                            msg["sender"] == null) {
+                          return const SizedBox.shrink();
+                        }
 
-                      dynamic senderData = msg['sender'];
-                      String senderId = "";
-                      if (senderData is Map<String, dynamic>) {
-                        senderId = senderData['id']?.toString() ?? '';
-                      } else {
-                        senderId = senderData?.toString() ?? '';
-                      }
-                      final isMe = senderId == userId;
+                        dynamic senderData = msg['sender'];
+                        String senderId = "";
+                        if (senderData is Map<String, dynamic>) {
+                          senderId = senderData['id']?.toString() ?? '';
+                        } else {
+                          senderId = senderData?.toString() ?? '';
+                        }
+                        final isMe = senderId == userId;
 
-                      final bool isLocalFile = msg["filePath"] != null;
-                      final bool isVideo = msg["message"].toString().contains(
-                        "[Video File",
-                      );
+                        final bool isLocalFile = msg["filePath"] != null;
+                        final bool isVideo = msg["message"].toString().contains(
+                              "[Video File",
+                            );
 
-                      return Align(
-                        alignment:
-                            isMe ? Alignment.centerRight : Alignment.centerLeft,
-                        child: Container(
-                          constraints: BoxConstraints(
-                            maxWidth: MediaQuery.of(context).size.width * 0.75,
-                          ),
-                          margin: const EdgeInsets.symmetric(vertical: 5),
-                          padding:
-                              isLocalFile
-                                  ? const EdgeInsets.symmetric(
-                                    vertical: 8,
-                                    horizontal: 12,
-                                  )
-                                  : const EdgeInsets.symmetric(
-                                    vertical: 10,
-                                    horizontal: 14,
-                                  ),
-                          decoration: BoxDecoration(
-                            color:
-                                isMe
-                                    ? Colors.orange.shade200
-                                    : Colors.grey.shade200,
-                            borderRadius: BorderRadius.only(
-                              topLeft: Radius.circular(16),
-                              topRight: Radius.circular(16),
-                              bottomLeft: Radius.circular(isMe ? 16 : 0),
-                              bottomRight: Radius.circular(isMe ? 0 : 16),
+                        return Align(
+                          alignment:
+                              isMe ? Alignment.centerRight : Alignment.centerLeft,
+                          child: Container(
+                            constraints: BoxConstraints(
+                              maxWidth: MediaQuery.of(context).size.width * 0.75,
                             ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
-                                blurRadius: 3,
-                                offset: const Offset(0, 1),
-                              ),
-                            ],
-                          ),
-                          child:
-                              isLocalFile
-                                  ? Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        isVideo
-                                            ? Icons.videocam_outlined
-                                            : Icons.image_outlined,
-                                        color: Colors.grey.shade700,
-                                        size: 20,
+                            margin: const EdgeInsets.symmetric(vertical: 5),
+                            padding:
+                                isLocalFile
+                                    ? const EdgeInsets.symmetric(
+                                        vertical: 8,
+                                        horizontal: 12,
+                                      )
+                                    : const EdgeInsets.symmetric(
+                                        vertical: 10,
+                                        horizontal: 14,
                                       ),
-                                      const SizedBox(width: 8),
-                                      Flexible(
-                                        child: Text(
-                                          msg["message"].toString(),
-                                          style: const TextStyle(
-                                            fontSize: 16,
-                                            color: Colors.black87,
-                                            fontStyle: FontStyle.italic,
+                            decoration: BoxDecoration(
+                              color:
+                                  isMe
+                                      ? Colors.orange.shade200
+                                      : Colors.grey.shade200,
+                              borderRadius: BorderRadius.only(
+                                topLeft: Radius.circular(16),
+                                topRight: Radius.circular(16),
+                                bottomLeft: Radius.circular(isMe ? 16 : 0),
+                                bottomRight: Radius.circular(isMe ? 0 : 16),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 3,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ],
+                            ),
+                            child:
+                                isLocalFile
+                                    ? Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            isVideo
+                                                ? Icons.videocam_outlined
+                                                : Icons.image_outlined,
+                                            color: Colors.grey.shade700,
+                                            size: 20,
                                           ),
+                                          const SizedBox(width: 8),
+                                          Flexible(
+                                            child: Text(
+                                              msg["message"].toString(),
+                                              style: const TextStyle(
+                                                fontSize: 16,
+                                                color: Colors.black87,
+                                                fontStyle: FontStyle.italic,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      )
+                                    : Text(
+                                        msg["message"].toString(),
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          color: Colors.black87,
                                         ),
                                       ),
-                                    ],
-                                  )
-                                  : Text(
-                                    msg["message"].toString(),
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      color: Colors.black87,
-                                    ),
-                                  ),
-                        ),
-                      );
-                    },
-                  ),
+                          ),
+                        );
+                      },
+                    ),
         ),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -1206,6 +1323,7 @@ class _LiveLiveChat2State extends State<LiveChat2>
   }
 
   Widget _buildChatList() {
+    // ... existing logic (no changes needed) ...
     if (conversations.isEmpty && !_isLoading) {
       return Center(
         child: Padding(
@@ -1283,8 +1401,8 @@ class _LiveLiveChat2State extends State<LiveChat2>
           final String lastMessageTime =
               convo['updatedAt'] != null
                   ? DateFormat(
-                    'h:mm a',
-                  ).format(DateTime.parse(convo['updatedAt']).toLocal())
+                      'h:mm a',
+                    ).format(DateTime.parse(convo['updatedAt']).toLocal())
                   : '';
           final String? otherUserImageUrl = otherUser['imageUrl'];
 
@@ -1307,13 +1425,13 @@ class _LiveLiveChat2State extends State<LiveChat2>
                     (otherUserImageUrl != null && otherUserImageUrl.isNotEmpty)
                         ? null
                         : Text(
-                          initial,
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.orange.shade800,
+                            initial,
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.orange.shade800,
+                            ),
                           ),
-                        ),
               ),
               title: Text(
                 otherUserName,
@@ -1363,30 +1481,31 @@ class _LiveLiveChat2State extends State<LiveChat2>
 
   @override
   Widget build(BuildContext context) {
+    // ... existing logic (no changes needed) ...
     super.build(context);
     return Scaffold(
       backgroundColor: Colors.orange.shade50,
       floatingActionButton:
           !isChatOpen && userRole == "Doctor"
               ? badges.Badge(
-                showBadge: _pendingCount > 0,
-                position: badges.BadgePosition.topEnd(top: -4, end: -4),
-                badgeContent: Text(
-                  _pendingCount.toString(),
-                  style: const TextStyle(color: Colors.white, fontSize: 12),
-                ),
-                badgeStyle: const badges.BadgeStyle(badgeColor: Colors.red),
-                child: FloatingActionButton(
-                  backgroundColor: Colors.orange.shade700,
-                  onPressed: _showAppointmentsSheet,
-                  tooltip: "View Appointments",
-                  child: const Icon(
-                    Icons.calendar_month_outlined,
-                    size: 28,
-                    color: Colors.white,
+                  showBadge: _pendingCount > 0,
+                  position: badges.BadgePosition.topEnd(top: -4, end: -4),
+                  badgeContent: Text(
+                    _pendingCount.toString(),
+                    style: const TextStyle(color: Colors.white, fontSize: 12),
                   ),
-                ),
-              )
+                  badgeStyle: const badges.BadgeStyle(badgeColor: Colors.red),
+                  child: FloatingActionButton(
+                    backgroundColor: Colors.orange.shade700,
+                    onPressed: _showAppointmentsSheet,
+                    tooltip: "View Appointments",
+                    child: const Icon(
+                      Icons.calendar_month_outlined,
+                      size: 28,
+                      color: Colors.white,
+                    ),
+                  ),
+                )
               : null,
       body: SafeArea(
         child: AnimatedSwitcher(
@@ -1398,11 +1517,11 @@ class _LiveLiveChat2State extends State<LiveChat2>
           child:
               _isLoading
                   ? const Center(
-                    child: CircularProgressIndicator(color: Colors.orange),
-                  )
+                      child: CircularProgressIndicator(color: Colors.orange),
+                    )
                   : isChatOpen
-                  ? _buildChatWindow()
-                  : _buildChatList(),
+                      ? _buildChatWindow()
+                      : _buildChatList(),
         ),
       ),
     );
@@ -1410,6 +1529,7 @@ class _LiveLiveChat2State extends State<LiveChat2>
 
   // Media picker helpers (unchanged)
   void _sendMediaMessage(File file, {bool isVideo = false}) {
+    // ... existing logic (no changes needed) ...
     _showSnackBar("Media upload not implemented yet.", isError: true);
     if (!mounted) return;
     setState(() {
@@ -1427,6 +1547,7 @@ class _LiveLiveChat2State extends State<LiveChat2>
 
   final ImagePicker _picker = ImagePicker();
   Future<void> _pickMedia() async {
+    // ... existing logic (no changes needed) ...
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -1525,6 +1646,7 @@ class _LiveLiveChat2State extends State<LiveChat2>
     required Color color,
     required VoidCallback onTap,
   }) {
+    // ... existing logic (no changes needed) ...
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
