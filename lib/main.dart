@@ -15,11 +15,81 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:page_transition/page_transition.dart';
 
+// --- ADD THESE IMPORTS ---
+import 'package:autisecure/calls/video_call.dart';
+import 'package:autisecure/services/socket_service.dart';
+// --- END OF NEW IMPORTS ---
+
+class GlobalNavigator {
+  static final GlobalKey<NavigatorState> navigatorKey =
+      GlobalKey<NavigatorState>();
+}
+
 // 🔔 Background handler
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   debugPrint("📩 Background message: ${message.notification?.title}");
+  // You could even call the handler here if needed, but be careful
+  // as the app is not running a UI.
 }
+
+// --- ADD THIS NEW FUNCTION ---
+/// Handles navigating to a video call from an FCM notification
+Future<void> _handleIncomingCallFromNotification(
+    Map<String, dynamic> data) async {
+  debugPrint("📞 Handling incoming call from notification...");
+
+  final String? type = data['type'];
+
+  if (type == 'incoming_call') {
+    final String? conversationId = data['conversationId'];
+    final String? callerId = data['callerId'];
+    final String? callerName = data['callerName'];
+
+    // Get the current user's ID from storage
+    final prefs = await SharedPreferences.getInstance();
+    // ⚠️ IMPORTANT: Make sure 'userId' is the key you use to save the user's ID!
+    final String? selfUserId = prefs.getString('userId'); 
+
+    if (conversationId != null &&
+        callerId != null &&
+        selfUserId != null) {
+      debugPrint("✅ Call data is valid. Connecting socket and navigating...");
+
+      // 1. Get the navigator state from our global key
+      final navigator = GlobalNavigator.navigatorKey.currentState;
+
+      // 2. Connect the socket
+      final SocketService socketService = SocketService();
+      try {
+        await socketService.connect();
+        if (socketService.socket == null) {
+          throw Exception("Socket instance is null after connect");
+        }
+
+        // 3. Navigate to the VideoCall screen
+        navigator?.push(
+          MaterialPageRoute(
+            builder: (context) => VideoCall(
+              socket: socketService.socket!,
+              callerName: callerName ?? 'Caller',
+              selfUserId: selfUserId,
+              peerUserId: callerId,
+              conversationId: conversationId,
+              isCaller: false, // This user is the callee
+            ),
+          ),
+        );
+      } catch (e) {
+        debugPrint("❌ Error connecting socket or navigating: $e");
+      }
+    } else {
+      debugPrint("⚠️ Invalid call data in notification payload.");
+      debugPrint("   convID: $conversationId, callerID: $callerId, selfID: $selfUserId");
+    }
+  }
+}
+// --- END OF NEW FUNCTION ---
 
 // 🔧 Update token to backend dynamically
 Future<void> updateFcmToken(String token) async {
@@ -85,11 +155,13 @@ Future<void> setupFCM() async {
   // 🔔 Foreground message handler
   FirebaseMessaging.onMessage.listen((RemoteMessage message) {
     debugPrint('📩 Foreground message: ${message.notification?.title}');
+    // You could show an in-app banner here if you want
   });
 
-  // 🔔 When user taps notification
+  // 🔔 When user taps notification (app in background)
   FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-    debugPrint('📲 Notification tapped!');
+    debugPrint('📲 Notification tapped! (Background)');
+    _handleIncomingCallFromNotification(message.data); // <-- MODIFIED
   });
 }
 
@@ -100,6 +172,17 @@ Future<void> main() async {
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
   await setupFCM(); // 👈 Initialize FCM system (store token locally only)
+
+  // 🔔 Check if app was launched from a terminated state
+  RemoteMessage? initialMessage =
+      await FirebaseMessaging.instance.getInitialMessage();
+  if (initialMessage != null) {
+    debugPrint('📲 Notification tapped! (Terminated)');
+    // We add a small delay to ensure the UI is ready before navigating
+    Future.delayed(const Duration(seconds: 1), () {
+       _handleIncomingCallFromNotification(initialMessage.data);
+    });
+  }
 
   runApp(
     ChangeNotifierProvider(create: (_) => SurveyState(), child: const MyApp()),
@@ -112,6 +195,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: GlobalNavigator.navigatorKey, // <-- MODIFIED
       debugShowCheckedModeBanner: false,
       home: const SplashScreen(),
       routes: {
@@ -150,8 +234,8 @@ class _SplashScreenState extends State<SplashScreen> {
               ? role == "Admin"
                   ? AdminLandingScreen()
                   : role == "Doctor"
-                  ? DoctorLndingScreen()
-                  : Landingscreen()
+                      ? DoctorLndingScreen()
+                      : Landingscreen()
               : LoginScreen();
     });
   }
@@ -182,7 +266,7 @@ class _SplashScreenState extends State<SplashScreen> {
       ),
       nextScreen:
           nextScreen ??
-          const Scaffold(body: Center(child: CircularProgressIndicator())),
+              const Scaffold(body: Center(child: CircularProgressIndicator())),
       backgroundColor: Colors.orange,
       splashIconSize: 550,
       centered: true,

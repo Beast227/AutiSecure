@@ -1,4 +1,3 @@
-// lib/calls/video_call.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
@@ -13,6 +12,7 @@ class VideoCall extends StatefulWidget {
   final String? peerUserId; // string id of peer (callee for caller, caller for callee)
   final String conversationId; // conversation id (useful for backend)
   final bool isCaller; // true when this client initiated the call
+  final String? peerSocketId; // <-- ADDED: Known socket ID of peer (for callee)
 
   const VideoCall({
     super.key,
@@ -22,6 +22,7 @@ class VideoCall extends StatefulWidget {
     required this.peerUserId,
     required this.conversationId,
     this.isCaller = false,
+    this.peerSocketId, // <-- ADDED
   });
 
   @override
@@ -34,10 +35,12 @@ class _VideoCallState extends State<VideoCall> {
   MediaStream? _localStream;
   RTCPeerConnection? _pc;
 
+  String? _peerSocketId; // <-- ADDED: Stores the peer's socket ID
   bool _isMuted = false;
   bool _isVideoOff = false;
   CallState _callState = CallState.ringing;
   bool _cleanupDone = false;
+  bool _localMediaStarted = false; // <-- ADDED to prevent addTrack errors
 
   @override
   void initState() {
@@ -45,10 +48,18 @@ class _VideoCallState extends State<VideoCall> {
     _localRenderer = RTCVideoRenderer();
     _remoteRenderer = RTCVideoRenderer();
     _initRenderers();
+
+    if (!widget.isCaller) {
+      // Callee already knows the caller's socket ID
+      _peerSocketId = widget.peerSocketId;
+      print("📞 Callee initialized with peerSocketId: $_peerSocketId");
+    }
+
     _registerSocketHandlers();
 
     // If this screen was opened by caller, emit initiateCall
     if (widget.isCaller) {
+      // Don't emit yet. Wait for renderers.
       Future.microtask(() => _emitInitiateCall());
     }
   }
@@ -65,20 +76,43 @@ class _VideoCallState extends State<VideoCall> {
     print("🔗 Registering socket handlers in VideoCall (socket id=${s.id})");
 
     s.on('incomingCall', (data) {
-      print("📲 incomingCall (shouldn't normally reach here inside active VideoCall): $data");
+      print(
+          "📲 incomingCall (shouldn't normally reach here inside active VideoCall): $data");
     });
 
     s.on('callAccepted', (data) async {
       print("✅ socket callAccepted => $data");
       if (!mounted) return;
-      // Only proceed if this acceptance is for our conversation
+
       final conv = data['conversationId']?.toString();
       if (conv != widget.conversationId) {
         print("ℹ️ callAccepted for other conversation ($conv) - ignoring");
         return;
       }
-      setState(() => _callState = CallState.connected);
-      await _startLocalMediaAndPeer(asCaller: widget.isCaller);
+
+      // --- CRUCIAL: For CALLER, get the callee's socket ID ---
+      if (widget.isCaller) {
+        final calleeSocketId = data['calleeSocketId']?.toString();
+        if (calleeSocketId == null) {
+          print("❌ FATAL: 'calleeSocketId' missing from 'callAccepted' event");
+          _showSnack("Call handshake failed. Missing peer ID.");
+          _endCallLocal(isError: true);
+          return;
+        }
+        setState(() {
+          _peerSocketId = calleeSocketId;
+        });
+        print("📞 Caller received calleeSocketId: $_peerSocketId");
+      }
+      // --- End Caller Logic ---
+
+      if (_callState == CallState.ringing) {
+        setState(() => _callState = CallState.connected);
+        // Now that we have the _peerSocketId, we can start media and create offer
+        await _startLocalMediaAndPeer(asCaller: widget.isCaller);
+      } else {
+        print("ℹ️ callAccepted received but call is already connected. Ignoring.");
+      }
     });
 
     s.on('callRejected', (data) {
@@ -97,7 +131,6 @@ class _VideoCallState extends State<VideoCall> {
 
     s.on('offer', (data) async {
       print("📩 socket.offer => $data");
-      // data: { offer: {sdp, type}, from: <userId>, conversationId: ... }
       final conv = data['conversationId']?.toString();
       if (conv != widget.conversationId) {
         print("ℹ️ offer for different conversation ($conv) -> ignore");
@@ -105,23 +138,31 @@ class _VideoCallState extends State<VideoCall> {
       }
 
       final offer = data['offer'];
-      final from = data['from']?.toString();
       try {
-        await _ensurePeerConnection();
-        // If local media not started yet (callee), start local media and add tracks
+        await _ensurePeerConnection(); // Ensure PC is created
+        
+        // If local media not started yet (callee), start local media
         if (_localStream == null) {
           await _startLocalMediaAndPeer(asCaller: false);
         }
-        await _pc!.setRemoteDescription(RTCSessionDescription(offer['sdp'], offer['type']));
+        
+        await _pc!
+            .setRemoteDescription(RTCSessionDescription(offer['sdp'], offer['type']));
         print("✅ Remote offer set, creating answer...");
         final answer = await _pc!.createAnswer();
         await _pc!.setLocalDescription(answer);
+
+        if (_peerSocketId == null) {
+          print("❌ Cannot send answer, peerSocketId is null");
+          return;
+        }
+
         widget.socket.emit('answer', {
           'conversationId': widget.conversationId,
           'answer': answer.toMap(),
-          'to': from,
+          'to': _peerSocketId, // <-- UPDATED: Use socket ID
         });
-        print("📤 Sent answer to $from");
+        print("📤 Sent answer to $_peerSocketId");
       } catch (e, st) {
         print("❌ Error handling offer: $e\n$st");
       }
@@ -136,7 +177,8 @@ class _VideoCallState extends State<VideoCall> {
       }
       final answer = data['answer'];
       try {
-        await _pc?.setRemoteDescription(RTCSessionDescription(answer['sdp'], answer['type']));
+        await _pc
+            ?.setRemoteDescription(RTCSessionDescription(answer['sdp'], answer['type']));
         print("✅ Remote answer applied");
       } catch (e) {
         print("❌ Error applying remote answer: $e");
@@ -144,7 +186,6 @@ class _VideoCallState extends State<VideoCall> {
     });
 
     s.on('ice-candidate', (data) async {
-      // data: { candidate: {candidate, sdpMid, sdpMLineIndex}, from, conversationId }
       final conv = data['conversationId']?.toString();
       if (conv != widget.conversationId) {
         print("ℹ️ ice-candidate for different conversation ($conv) -> ignore");
@@ -152,6 +193,10 @@ class _VideoCallState extends State<VideoCall> {
       }
       final candidateMap = data['candidate'];
       if (candidateMap == null) return;
+      
+      // Wait for PC to be created
+      await _ensurePeerConnection();
+
       try {
         final cand = RTCIceCandidate(
           candidateMap['candidate'],
@@ -178,54 +223,69 @@ class _VideoCallState extends State<VideoCall> {
       };
       print("📞 Emitting initiateCall => $payload");
       widget.socket.emit('initiateCall', payload);
-      // the server should then notify the callee (incomingCall) and eventually emit callAccepted to caller
     } catch (e) {
       print("⚠️ Failed to emit initiateCall: $e");
     }
   }
 
   Future<void> _startLocalMediaAndPeer({required bool asCaller}) async {
+    if (_localMediaStarted) {
+      // --- THIS WAS THE LINE WITH THE ERROR ---
+      print("ℹ️ _startLocalMediaAndPeer: Media already started, skipping.");
+      // --- END FIX ---
+      return; // <-- FIX for addTrack error
+    }
+    _localMediaStarted = true; // <-- FIX for addTrack error
+
     print("🎬 startLocalMediaAndPeer(asCaller=$asCaller)");
     try {
-      // 1) start local media if not started
-      if (_localStream == null) {
-        final constraints = {
-          'audio': true,
-          'video': {'facingMode': 'user', 'width': 640, 'height': 480},
-        };
-        final stream = await navigator.mediaDevices.getUserMedia(constraints);
-        _localStream = stream;
-        _localRenderer.srcObject = _localStream;
-        print("✅ Local stream started, tracks: ${_localStream!.getTracks().length}");
-      }
+      // 1) start local media
+      final constraints = {
+        'audio': true,
+        'video': {'facingMode': 'user', 'width': 640, 'height': 480},
+      };
+      final stream = await navigator.mediaDevices.getUserMedia(constraints);
+      _localStream = stream;
+      _localRenderer.srcObject = _localStream;
+      print("✅ Local stream started, tracks: ${_localStream!.getTracks().length}");
 
-      // 2) create peer connection if missing and add tracks
+      // 2) create peer connection
       await _ensurePeerConnection();
 
-      // Add local tracks
+      // 3) Add local tracks
       _localStream?.getTracks().forEach((track) {
         try {
+          print("🛤️ Adding track: ${track.kind}");
           _pc?.addTrack(track, _localStream!);
         } catch (e) {
-          // ignore if track already added
+          // This catch is important if addTrack is called multiple times
+          print("⚠️ Error adding track (ignoring): $e");
         }
       });
 
-      // 3) if caller, create offer and send
+      // 4) if caller, create offer and send
       if (asCaller) {
+        if (_peerSocketId == null) {
+          print("❌ FATAL: _startLocalMediaAndPeer called for CALLER but peerSocketId is null.");
+          _showSnack("Call connection failed (Peer ID missing)");
+          _endCallLocal(isError: true);
+          return;
+        }
         final offer = await _pc!.createOffer();
         await _pc!.setLocalDescription(offer);
         widget.socket.emit('offer', {
           'conversationId': widget.conversationId,
           'offer': offer.toMap(),
-          'to': widget.peerUserId,
+          'to': _peerSocketId, // <-- UPDATED
         });
-        print("📤 Offer sent to ${widget.peerUserId}");
+        print("📤 Offer sent to $_peerSocketId");
       } else {
         print("⏳ Callee: waiting for remote offer...");
       }
     } catch (e, st) {
       print("❌ Error in startLocalMediaAndPeer: $e\n$st");
+      _showSnack("Failed to start camera/mic");
+      _endCallLocal(isError: true);
     }
   }
 
@@ -243,12 +303,19 @@ class _VideoCallState extends State<VideoCall> {
 
     _pc!.onIceCandidate = (RTCIceCandidate? candidate) {
       if (candidate == null) return;
+
+      if (_peerSocketId == null) {
+        print("⚠️ Cannot send ICE candidate, _peerSocketId is null. Queuing.");
+        // We might get candidates before the peer accepts.
+        // A more robust solution would queue them.
+        return;
+      }
       final candidateObj = candidate.toMap();
-      print("📤 onIceCandidate -> emit to ${widget.peerUserId}: $candidateObj");
+      print("📤 onIceCandidate -> emit to $_peerSocketId: $candidateObj");
       widget.socket.emit('ice-candidate', {
         'conversationId': widget.conversationId,
         'candidate': candidateObj,
-        'to': widget.peerUserId,
+        'to': _peerSocketId, // <-- UPDATED
       });
     };
 
@@ -262,6 +329,11 @@ class _VideoCallState extends State<VideoCall> {
 
     _pc!.onConnectionState = (state) {
       print("🔁 PeerConnection state changed: $state");
+      if (state == RTCPeerConnectionState.RTCPeerConnectionStateFailed ||
+          state == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected) {
+        print("🛑 Peer connection failed or disconnected.");
+        _endCallLocal();
+      }
     };
 
     print("✅ PeerConnection created");
@@ -302,6 +374,7 @@ class _VideoCallState extends State<VideoCall> {
       try {
         _pc?.onIceCandidate = null;
         _pc?.onTrack = null;
+        _pc?.onConnectionState = null;
         await _pc?.close();
       } catch (e) {
         print("⚠️ error closing pc: $e");
@@ -340,23 +413,33 @@ class _VideoCallState extends State<VideoCall> {
     } catch (e) {
       print("❌ cleanup error: $e");
     }
-
+    _localMediaStarted = false;
     print("✅ Cleanup done");
   }
 
-  Future<void> _endCallLocal() async {
+  Future<void> _endCallLocal({bool isError = false}) async {
+    if (_callState == CallState.ended) return; // Already ended
+
     try {
-      // emit end to peer
-      try {
-        widget.socket.emit('endCall', {
-          'conversationId': widget.conversationId,
-          'from': widget.selfUserId,
-          'to': widget.peerUserId,
-        });
-        print("📤 endCall emitted");
-      } catch (e) {
-        print("⚠️ emit endCall failed: $e");
+      if (!isError) {
+        // Only emit 'endCall' or 'cancelCall' if it's a user action, not an error cleanup
+        if (_peerSocketId != null) {
+          // Call is connected or ringing and peer has accepted
+          print("📤 endCall emitted to $_peerSocketId");
+          widget.socket.emit('endCall', {
+            'conversationId': widget.conversationId,
+            'to': _peerSocketId, // <-- UPDATED
+          });
+        } else if (widget.isCaller && _callState == CallState.ringing) {
+          // Caller is hanging up while ringing
+          print("🚫 Emitting cancelCall to user ${widget.peerUserId}");
+          widget.socket.emit('cancelCall', {
+            'conversationId': widget.conversationId,
+            'toUserId': widget.peerUserId, // Use the User ID (server must handle this)
+          });
+        }
       }
+
       setState(() => _callState = CallState.ended);
       await _cleanup();
 
@@ -378,7 +461,14 @@ class _VideoCallState extends State<VideoCall> {
       widget.socket.off('answer');
       widget.socket.off('ice-candidate');
     } catch (_) {}
-    _cleanup();
+    
+    // Ensure cleanup is called, especially if _endCallLocal wasn't
+    if (_callState != CallState.ended) {
+      _endCallLocal();
+    } else {
+      _cleanup(); // Just in case
+    }
+    
     super.dispose();
   }
 
@@ -388,7 +478,7 @@ class _VideoCallState extends State<VideoCall> {
       child: SizedBox(
         width: MediaQuery.of(context).size.width,
         height: MediaQuery.of(context).size.height,
-        child: RTCVideoView(_remoteRenderer),
+        child: RTCVideoView(_remoteRenderer, mirror: true), // Mirror remote view
       ),
     );
   }
@@ -403,7 +493,8 @@ class _VideoCallState extends State<VideoCall> {
             ? RTCVideoView(_localRenderer, mirror: true)
             : Container(
                 color: Colors.grey.shade900,
-                child: const Center(child: Icon(Icons.person, color: Colors.white)),
+                child: const Center(
+                    child: Icon(Icons.person, color: Colors.white)),
               ),
       ),
     );
@@ -423,11 +514,13 @@ class _VideoCallState extends State<VideoCall> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text("📞 Calling ${widget.callerName}...", style: const TextStyle(color: Colors.white, fontSize: 20)),
+              Text("📞 Calling ${widget.callerName}...",
+                  style: const TextStyle(color: Colors.white, fontSize: 20)),
               const SizedBox(height: 24),
               const CircularProgressIndicator(color: Colors.white),
               const SizedBox(height: 24),
-              Text("Waiting for peer to accept...", style: const TextStyle(color: Colors.white70)),
+              Text("Waiting for peer to accept...",
+                  style: const TextStyle(color: Colors.white70)),
             ],
           ),
         );
@@ -435,11 +528,21 @@ class _VideoCallState extends State<VideoCall> {
       case CallState.connected:
         bodyContent = Stack(children: [
           _buildRemoteViewCover(),
-          Positioned(left: 16, bottom: 120, child: _buildLocalPreview()),
+          Positioned(
+            left: 16, 
+            bottom: 120, // Position above controls
+            child: _buildLocalPreview()
+          ),
         ]);
         break;
       case CallState.ended:
-        bodyContent = const Center(child: Text("Call ended", style: TextStyle(color: Colors.white, fontSize: 20)));
+        bodyContent = const Center(
+            child: Text("Call ended",
+                style: TextStyle(color: Colors.white, fontSize: 20)));
+        // Pop after a delay
+        Future.delayed(Duration(seconds: 1), () {
+          if (mounted) Navigator.of(context).pop();
+        });
         break;
     }
 
@@ -449,32 +552,42 @@ class _VideoCallState extends State<VideoCall> {
         children: [
           Positioned.fill(child: bodyContent),
           if (_callState == CallState.connected)
-            Positioned(top: 52, left: 16, child: Text(widget.callerName, style: const TextStyle(color: Colors.white, fontSize: 20))),
-          Positioned(
-            bottom: 32,
-            left: 0,
-            right: 0,
-            child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-              FloatingActionButton(
-                heroTag: 'mic',
-                backgroundColor: Colors.white,
-                onPressed: _toggleMute,
-                child: Icon(_isMuted ? Icons.mic_off : Icons.mic, color: Colors.black),
-              ),
-              FloatingActionButton(
-                heroTag: 'end',
-                backgroundColor: Colors.red,
-                onPressed: _endCallLocal,
-                child: const Icon(Icons.call_end),
-              ),
-              FloatingActionButton(
-                heroTag: 'cam',
-                backgroundColor: Colors.white,
-                onPressed: _toggleVideo,
-                child: Icon(_isVideoOff ? Icons.videocam_off : Icons.videocam, color: Colors.black),
-              ),
-            ]),
-          ),
+            Positioned(
+                top: 52,
+                left: 16,
+                child: Text(widget.callerName,
+                    style: const TextStyle(color: Colors.white, fontSize: 20))),
+          
+          // Always show controls unless ended
+          if (_callState != CallState.ended)
+            Positioned(
+              bottom: 32,
+              left: 0,
+              right: 0,
+              child:
+                  Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+                FloatingActionButton(
+                  heroTag: 'mic',
+                  backgroundColor: _isMuted ? Colors.red : Colors.white,
+                  onPressed: _toggleMute,
+                  child: Icon(_isMuted ? Icons.mic_off : Icons.mic,
+                      color: _isMuted ? Colors.white : Colors.black),
+                ),
+                FloatingActionButton(
+                  heroTag: 'end',
+                  backgroundColor: Colors.red,
+                  onPressed: () => _endCallLocal(isError: false),
+                  child: const Icon(Icons.call_end),
+                ),
+                FloatingActionButton(
+                  heroTag: 'cam',
+                  backgroundColor: _isVideoOff ? Colors.red : Colors.white,
+                  onPressed: _toggleVideo,
+                  child: Icon(_isVideoOff ? Icons.videocam_off : Icons.videocam,
+                      color: _isVideoOff ? Colors.white : Colors.black),
+                ),
+              ]),
+            ),
         ],
       ),
     );
