@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
@@ -10,10 +12,19 @@ class SocketService {
   io.Socket? socket;
   bool _isConnected = false;
 
-  static const String _tokenKey = 'token';
+  static const String _tokenKey = 'token'; // Make sure this key is correct
+
+  /// Stream controller to broadcast incoming call events to the UI.
+  final StreamController<Map<String, dynamic>> _incomingCallController =
+      StreamController.broadcast();
+
+  /// Public stream for the UI to listen for incoming calls.
+  Stream<Map<String, dynamic>> get incomingCallStream =>
+      _incomingCallController.stream;
 
   bool get isConnected => _isConnected && socket?.connected == true;
 
+  // -------------------- MAIN CONNECTION --------------------
   Future<void> connect() async {
     debugPrint("⚡ [SocketService] connect() called");
 
@@ -23,6 +34,7 @@ class SocketService {
     }
 
     final prefs = await SharedPreferences.getInstance();
+    // TODO: Ensure you are saving the token with this key after login
     final token = prefs.getString(_tokenKey);
 
     if (token == null || token.isEmpty) {
@@ -30,7 +42,6 @@ class SocketService {
       return;
     }
 
-    // Close any previous instance cleanly
     socket?.disconnect();
     socket = null;
 
@@ -60,14 +71,19 @@ class SocketService {
       debugPrint("❌ Socket general error: $data");
     });
 
-    // Add the receiveMessage listener once here
+    // Default chat message listener
     socket!.on("receiveMessage", (data) {
-      debugPrint("📩 [SocketService] receiveMessage triggered: $data");
+      debugPrint("📩 [SocketService] receiveMessage: $data");
+      // Note: You might want a Stream for this too, like the incoming call
     });
+
+    // Video call event listeners
+    _registerVideoCallListeners();
 
     socket!.connect();
   }
 
+  // -------------------- CHAT FEATURES --------------------
   void joinRoom(String conversationId) {
     if (!isConnected) {
       debugPrint("⚠️ Tried joining room before connection");
@@ -104,11 +120,168 @@ class SocketService {
     debugPrint("🧹 Removed receiveMessage listener.");
   }
 
+  void dispose() {
+    _incomingCallController.close();
+    debugPrint("🧹 [SocketService] Stream controllers closed.");
+  }
+
   void disconnect() {
     if (socket != null) {
       socket!.disconnect();
       _isConnected = false;
       debugPrint("🔌 Socket manually disconnected.");
     }
+  }
+
+  // -------------------- VIDEO CALL FEATURES --------------------
+  void initiateCall({
+    required String conversationId,
+    required String fromUserId,
+    required String toUserId,
+    required String callerName,
+  }) {
+    if (!isConnected) {
+      debugPrint("⚠️ Tried initiating call before connection");
+      return;
+    }
+
+    final payload = {
+      'conversationId': conversationId,
+      'from': fromUserId,
+      'to': toUserId,
+      'callerName': callerName,
+    };
+
+    socket!.emit('initiateCall', payload);
+    debugPrint("📞 [SocketService] initiateCall => $payload");
+    // NOTE: Your server `socketHandler.ts` currently ignores 'callerName'
+    // and hardcodes it to "Caller". You need to fix the server handler:
+    // socket.on("initiateCall", async ({ conversationId, callerName }: any) => {
+    //   ...
+    //   io.to(receiverSocket.id).emit("incomingCall", {
+    //     ...
+    //     callerName: callerName || "Caller", // Use the name from payload
+    //   });
+    // });
+  }
+
+  /// Callee accepts the call
+  void acceptCall(String conversationId, String toSocketId) {
+    if (!isConnected) return;
+    final payload = {
+      'conversationId': conversationId,
+      'to': toSocketId,
+      'from': socket?.id, // Send our own socket ID so caller can store it
+    };
+    socket?.emit('acceptCall', payload);
+    debugPrint("✅ [SocketService] acceptCall => $payload");
+  }
+
+  /// Callee rejects the call
+  void rejectCall(String conversationId, String toSocketId) {
+    if (!isConnected) return;
+    final payload = {'conversationId': conversationId, 'to': toSocketId};
+    socket?.emit('rejectCall', payload);
+    debugPrint("❌ [SocketService] rejectCall => $payload");
+  }
+
+  /// Anyone ends the call
+  void endCall(String conversationId, String toSocketId) {
+    if (!isConnected) return;
+    final payload = {'conversationId': conversationId, 'to': toSocketId};
+    socket?.emit('endCall', payload);
+    debugPrint("🛑 [SocketService] endCall => $payload");
+  }
+
+  // --- WebRTC signaling events ---
+
+  void sendOffer(
+    String conversationId,
+    String toSocketId,
+    Map<String, dynamic> offer,
+  ) {
+    if (!isConnected) return;
+    final payload = {
+      'conversationId': conversationId,
+      'offer': offer,
+      'to': toSocketId,
+    };
+    socket?.emit('offer', payload);
+    debugPrint("📤 [SocketService] Sent Offer to $toSocketId");
+  }
+
+  void sendAnswer(
+    String conversationId,
+    String toSocketId,
+    Map<String, dynamic> answer,
+  ) {
+    if (!isConnected) return;
+    final payload = {
+      'conversationId': conversationId,
+      'answer': answer,
+      'to': toSocketId,
+    };
+    socket?.emit('answer', payload);
+    debugPrint("📤 [SocketService] Sent Answer to $toSocketId");
+  }
+
+  void sendIceCandidate(
+    String conversationId,
+    String toSocketId,
+    Map<String, dynamic> candidate,
+  ) {
+    if (!isConnected) return;
+    final payload = {
+      'conversationId': conversationId,
+      'candidate': candidate,
+      'to': toSocketId,
+    };
+    socket?.emit('ice-candidate', payload);
+    debugPrint("📤 [SocketService] Sent ICE Candidate to $toSocketId");
+  }
+
+  // -------------------- REGISTER CALL EVENTS --------------------
+  void _registerVideoCallListeners() {
+    if (socket == null) return;
+
+    socket!.on('incomingCall', (data) {
+      debugPrint("📲 [SocketService] Incoming call => $data");
+      // Broadcast this event to the app
+      if (data is Map<String, dynamic>) {
+        _incomingCallController.add(data);
+      }
+    });
+
+    socket!.on('callAccepted', (data) {
+      debugPrint("✅ [SocketService] Call accepted => $data");
+      // This is handled inside VideoCall.dart, no global broadcast needed
+    });
+
+    socket!.on('callRejected', (data) {
+      debugPrint("❌ [SocketService] Call rejected => $data");
+      // This is handled inside VideoCall.dart
+    });
+
+    socket!.on('callEnded', (data) {
+      debugPrint("🛑 [SocketService] Call ended => $data");
+      // This is handled inside VideoCall.dart
+    });
+
+    socket!.on('offer', (data) {
+      debugPrint("📩 [SocketService] Received Offer");
+      // This is handled inside VideoCall.dart
+    });
+
+    socket!.on('answer', (data) {
+      debugPrint("📩 [SocketService] Received Answer");
+      // This is handled inside VideoCall.dart
+    });
+
+    socket!.on('ice-candidate', (data) {
+      debugPrint("📩 [SocketService] Received ICE Candidate");
+      // This is handled inside VideoCall.dart
+    });
+
+    debugPrint("🎥 [SocketService] Registered all video call listeners");
   }
 }
