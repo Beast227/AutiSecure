@@ -36,7 +36,8 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 // --- ADD THIS NEW FUNCTION ---
 /// Handles navigating to a video call from an FCM notification
 Future<void> _handleIncomingCallFromNotification(
-    Map<String, dynamic> data) async {
+  Map<String, dynamic> data,
+) async {
   debugPrint("📞 Handling incoming call from notification...");
 
   final String? type = data['type'];
@@ -49,11 +50,9 @@ Future<void> _handleIncomingCallFromNotification(
     // Get the current user's ID from storage
     final prefs = await SharedPreferences.getInstance();
     // ⚠️ IMPORTANT: Make sure 'userId' is the key you use to save the user's ID!
-    final String? selfUserId = prefs.getString('userId'); 
+    final String? selfUserId = prefs.getString('userId');
 
-    if (conversationId != null &&
-        callerId != null &&
-        selfUserId != null) {
+    if (conversationId != null && callerId != null && selfUserId != null) {
       debugPrint("✅ Call data is valid. Connecting socket and navigating...");
 
       // 1. Get the navigator state from our global key
@@ -70,14 +69,15 @@ Future<void> _handleIncomingCallFromNotification(
         // 3. Navigate to the VideoCall screen
         navigator?.push(
           MaterialPageRoute(
-            builder: (context) => VideoCall(
-              socket: socketService.socket!,
-              callerName: callerName ?? 'Caller',
-              selfUserId: selfUserId,
-              peerUserId: callerId,
-              conversationId: conversationId,
-              isCaller: false, // This user is the callee
-            ),
+            builder:
+                (context) => VideoCall(
+                  socket: socketService.socket!,
+                  callerName: callerName ?? 'Caller',
+                  selfUserId: selfUserId,
+                  peerUserId: callerId,
+                  conversationId: conversationId,
+                  isCaller: false, // This user is the callee
+                ),
           ),
         );
       } catch (e) {
@@ -85,7 +85,9 @@ Future<void> _handleIncomingCallFromNotification(
       }
     } else {
       debugPrint("⚠️ Invalid call data in notification payload.");
-      debugPrint("   convID: $conversationId, callerID: $callerId, selfID: $selfUserId");
+      debugPrint(
+        "   convID: $conversationId, callerID: $callerId, selfID: $selfUserId",
+      );
     }
   }
 }
@@ -180,7 +182,7 @@ Future<void> main() async {
     debugPrint('📲 Notification tapped! (Terminated)');
     // We add a small delay to ensure the UI is ready before navigating
     Future.delayed(const Duration(seconds: 1), () {
-       _handleIncomingCallFromNotification(initialMessage.data);
+      _handleIncomingCallFromNotification(initialMessage.data);
     });
   }
 
@@ -234,8 +236,8 @@ class _SplashScreenState extends State<SplashScreen> {
               ? role == "Admin"
                   ? AdminLandingScreen()
                   : role == "Doctor"
-                      ? DoctorLndingScreen()
-                      : Landingscreen()
+                  ? DoctorLndingScreen()
+                  : Landingscreen()
               : LoginScreen();
     });
   }
@@ -266,7 +268,7 @@ class _SplashScreenState extends State<SplashScreen> {
       ),
       nextScreen:
           nextScreen ??
-              const Scaffold(body: Center(child: CircularProgressIndicator())),
+          const Scaffold(body: Center(child: CircularProgressIndicator())),
       backgroundColor: Colors.orange,
       splashIconSize: 550,
       centered: true,
