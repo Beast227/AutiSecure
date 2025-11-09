@@ -47,8 +47,6 @@ class _LiveLiveChat2State extends State<LiveChat2>
   final TextEditingController messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
-  StreamSubscription? _callSubscription; // <-- ADDED
-
   static const String _pendingCacheKey = 'pendingAppointmentsCache';
   static const String _approvedCacheKey = 'approvedAppointmentsCache';
   static const String _conversationsCacheKey = 'conversationsCache';
@@ -66,7 +64,6 @@ class _LiveLiveChat2State extends State<LiveChat2>
   void dispose() {
     messageController.dispose();
     _scrollController.dispose();
-    _callSubscription?.cancel(); // <-- ADDED
     socketService.offMessageReceived(_handleIncomingMessage);
     socketService.disconnect();
     super.dispose();
@@ -85,7 +82,6 @@ class _LiveLiveChat2State extends State<LiveChat2>
     }
 
     await _connectAndListen();
-    _listenForIncomingCalls(); // <-- ADDED
 
     await Future.wait([_loadConversations(), _loadAppointments()]);
 
@@ -103,67 +99,6 @@ class _LiveLiveChat2State extends State<LiveChat2>
     } catch (e) {
       debugPrint("❌ Failed to connect socket: $e");
       _showSnackBar("Real-time connection failed.", isError: true);
-    }
-  }
-
-  // --- ADDED: Handles incoming call events from SocketService ---
-  void _listenForIncomingCalls() {
-    _callSubscription =
-        socketService.incomingCallStream.listen(_handleIncomingCall);
-    debugPrint("📞 [LiveChat2_Doctor] Listening for incoming calls...");
-  }
-
-  // --- ADDED: Shows the IncomingCallScreen ---
-  Future<void> _handleIncomingCall(Map<String, dynamic> data) async {
-    debugPrint("📲 [LiveChat2_Doctor] Handling incoming call: $data");
-    if (!mounted) return;
-
-    final String conversationId = data['conversationId']?.toString() ?? '';
-    final String callerName =
-        data['callerName']?.toString() ?? 'Unknown Caller';
-    final String callerId = data['callerId']?.toString() ?? '';
-    final String callerSocketId = data['callerSocketId']?.toString() ?? '';
-
-    if (conversationId.isEmpty || callerId.isEmpty || callerSocketId.isEmpty) {
-      debugPrint("❌ Incoming call data is incomplete. Ignoring.");
-      return;
-    }
-
-    // Show the incoming call screen
-    final bool? didAccept = await Navigator.of(context).push(
-      MaterialPageRoute(
-        fullscreenDialog: true,
-        builder: (context) => IncomingCallScreen(
-          callerName: callerName,
-          conversationId: conversationId,
-          data: data,
-        ),
-      ),
-    );
-
-    if (didAccept == true) {
-      // User accepted
-      debugPrint("✅ Call accepted by user.");
-      socketService.acceptCall(conversationId, callerSocketId);
-
-      // Navigate to the VideoCall screen as the CALLEE
-      if (!mounted) return;
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) => VideoCall(
-            socket: socketService.socket!,
-            callerName: callerName, // Name of the person who called
-            selfUserId: userId!,
-            peerUserId: callerId,
-            conversationId: conversationId,
-            isCaller: false,
-          ),
-        ),
-      );
-    } else {
-      // User rejected
-      debugPrint("❌ Call rejected by user.");
-      socketService.rejectCall(conversationId, callerSocketId);
     }
   }
 

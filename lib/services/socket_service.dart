@@ -160,15 +160,6 @@ class SocketService {
 
     socket!.emit('initiateCall', payload);
     debugPrint("📞 [SocketService] initiateCall => $payload");
-    // NOTE: Your server `socketHandler.ts` currently ignores 'callerName'
-    // and hardcodes it to "Caller". You need to fix the server handler:
-    // socket.on("initiateCall", async ({ conversationId, callerName }: any) => {
-    //   ...
-    //   io.to(receiverSocket.id).emit("incomingCall", {
-    //     ...
-    //     callerName: callerName || "Caller", // Use the name from payload
-    //   });
-    // });
   }
 
   /// Callee accepts the call
