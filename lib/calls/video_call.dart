@@ -50,17 +50,6 @@ class _VideoCallState extends State<VideoCall> {
     _remoteRenderer = RTCVideoRenderer();
     _initRenderers();
 
-    if (!widget.isCaller) {
-      // Callee already knows the caller's socket ID
-      _peerSocketId = widget.peerSocketId;
-      debugPrint("📞 Callee initialized with peerSocketId: $_peerSocketId");
-
-      _callState = CallState.connected; // Callee is connected immediately
-      Future.microtask(() => _startLocalMediaAndPeer(asCaller: false));
-    } else {
-      _callState = CallState.ringing; // Caller starts as ringing
-    }
-
     _registerSocketHandlers();
   }
 
