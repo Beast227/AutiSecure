@@ -50,6 +50,17 @@ class _VideoCallState extends State<VideoCall> {
     _remoteRenderer = RTCVideoRenderer();
     _initRenderers();
 
+    if (!widget.isCaller) {
+      // Callee already knows the caller's socket ID
+      _peerSocketId = widget.peerSocketId;
+      debugPrint("📞 Callee initialized with peerSocketId: $_peerSocketId");
+
+      _callState = CallState.connected; // Callee is connected immediately
+      // Future.microtask(() => _startLocalMediaAndPeer(asCaller: false));
+    } else {
+      _callState = CallState.ringing; // Caller starts as ringing
+    }
+
     _registerSocketHandlers();
   }
 
@@ -332,6 +343,8 @@ class _VideoCallState extends State<VideoCall> {
       if (event.streams.isNotEmpty) {
         _remoteRenderer.srcObject = event.streams.first;
         debugPrint("✅ Remote stream attached to renderer");
+
+        if (mounted) setState(() {});
       }
     };
 
@@ -461,15 +474,6 @@ class _VideoCallState extends State<VideoCall> {
   @override
   void dispose() {
     debugPrint("🧹 VideoCall.dispose - removing socket handlers");
-    try {
-      widget.socket.off('incomingCall');
-      widget.socket.off('callAccepted');
-      widget.socket.off('callRejected');
-      widget.socket.off('callEnded');
-      widget.socket.off('offer');
-      widget.socket.off('answer');
-      widget.socket.off('ice-candidate');
-    } catch (_) {}
 
     // Ensure cleanup is called, especially if _endCallLocal wasn't
     if (_callState != CallState.ended) {
