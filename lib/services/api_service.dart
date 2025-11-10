@@ -61,7 +61,32 @@ Future<Map<String, dynamic>> submitSurvey(Map<String, dynamic> payload) async {
   }
 }
 
-Future<Map<String, dynamic>> analyzeASDVideoUrl(String videoUrl) async {
+// Future<Map<String, dynamic>> analyzeASDVideoUrl(String videoUrl) async {
+//   final prefs = await SharedPreferences.getInstance();
+//   final token = prefs.getString('token');
+//   final apiEndpoint = Uri.parse(
+//     "https://autisense-backend.onrender.com/api/video/analyze",
+//   );
+
+//   final response = await http.post(
+//     apiEndpoint,
+//     headers: {
+//       'Content-Type': 'application/json',
+//       "Authorization": "Barer $token",
+//     },
+//     body: jsonEncode({"videoUrl": videoUrl}),
+//   );
+
+//   debugPrint("analysing the video");
+//   if (response.statusCode == 202) {
+//     debugPrint(response.body);
+//     return jsonDecode(response.body);
+//   } else {
+//     throw Exception("Failed to analyze video: ${response.body}");
+//   }
+// }
+
+Future<bool> analyzeASDVideoUrl(String videoUrl) async {
   final prefs = await SharedPreferences.getInstance();
   final token = prefs.getString('token');
   final apiEndpoint = Uri.parse(
@@ -71,18 +96,45 @@ Future<Map<String, dynamic>> analyzeASDVideoUrl(String videoUrl) async {
   final response = await http.post(
     apiEndpoint,
     headers: {
-      'Content-Type': 'application/json',
-      "Authorization": "Barer $token",
+      "Content-Type": "application/json",
+      "Authorization": "Bearer $token", // fixed typo Barer → Bearer
     },
     body: jsonEncode({"videoUrl": videoUrl}),
   );
 
-  debugPrint("analysing the video");
+  debugPrint("📤 Sent video for analysis. Status: ${response.statusCode}");
+  debugPrint("📥 Response: ${response.body}");
+
+  // Expected response: 202 ACCEPTED
+  return response.statusCode == 202;
+}
+
+Future<List<dynamic>> getASDVideoReports() async {
+  final prefs = await SharedPreferences.getInstance();
+  final token = prefs.getString('token');
+
+  if (token == null || token.isEmpty) {
+    throw Exception("No token found. Please log in again.");
+  }
+
+  final Uri apiEndpoint = Uri.parse(
+    "https://autisense-backend.onrender.com/api/video/",
+  );
+
+  final response = await http.get(
+    apiEndpoint,
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer $token",
+    },
+  );
+
+  debugPrint("📥 GET /video/report Response: ${response.body}");
+
   if (response.statusCode == 200) {
-    debugPrint(response.body);
-    return jsonDecode(response.body);
+    return jsonDecode(response.body) as List<dynamic>;
   } else {
-    throw Exception("Failed to analyze video: ${response.body}");
+    throw Exception("Failed to fetch video reports: ${response.body}");
   }
 }
 

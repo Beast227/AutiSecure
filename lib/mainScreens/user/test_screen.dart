@@ -31,6 +31,7 @@ class TestScreen extends StatefulWidget {
 
 class _TestScreenState extends State<TestScreen>
     with AutomaticKeepAliveClientMixin {
+  Map<String, dynamic>? _analysisData;
   List<QuestionModel> questions = [];
   int aqScore = 0;
   bool loading = true;
@@ -56,6 +57,7 @@ class _TestScreenState extends State<TestScreen>
     super.initState();
     loadSurveyData();
     _loadAnalysisFromPrefsAndSetState();
+    loadLatestVideoAnalysisFromServer();
   }
 
   @override
@@ -178,37 +180,23 @@ class _TestScreenState extends State<TestScreen>
     final videoUrl = await uploadVideoToCloudinary(selectedVideo!);
     if (videoUrl == null) return;
 
-    if (!mounted) return;
     setState(() => _isAnalyzing = true);
-    _showSnackBar("Starting analysis...");
+    _showSnackBar("Uploading video...");
 
     try {
-      final result = await api_service.analyzeASDVideoUrl(videoUrl);
+      final accepted = await api_service.analyzeASDVideoUrl(videoUrl);
 
       if (!mounted) return;
 
-      // Save analysis in structured format
-      await _saveAnalysisToPrefs(
-        traits: Map<String, dynamic>.from(
-          result['report']?['detected_traits'] ?? {},
-        ),
-        prediction:
-            result['report']?['final_prediction']?['prediction']?.toString() ??
-            "UNKNOWN",
-        confidence:
-            result['report']?['final_prediction']?['confidence']?.toString() ??
-            "0%",
-        videoUrl: result['report']?['videoUrl']?.toString() ?? "",
-      );
-
-      // Optionally, pause video after analysis
-      _videoController?.pause();
-      _showSnackBar("✅ Analysis completed!");
-      debugPrint("✅ Analysis completed: $result");
+      if (accepted) {
+        _showSnackBar("✅ Analysis started.\nReturn later to see the report.");
+        debugPrint("✅ Server returned 202. Processing asynchronously.");
+      } else {
+        _showSnackBar("⚠️ Server did not accept video.", isError: true);
+      }
     } catch (e, stackTrace) {
-      _showSnackBar("Error analyzing video: $e", isError: true);
-      debugPrint("❌ Error analyzing video: $e");
-      debugPrint(stackTrace.toString());
+      _showSnackBar("❌ Error analyzing video: $e", isError: true);
+      debugPrint("❌ Error analyzing video: $e\n$stackTrace");
     } finally {
       if (mounted) setState(() => _isAnalyzing = false);
     }
@@ -262,12 +250,68 @@ class _TestScreenState extends State<TestScreen>
     try {
       final prefs = await SharedPreferences.getInstance();
       final jsonData = prefs.getString('asd_analysis');
+
       debugPrint("✅ Raw analysis data from prefs: $jsonData");
-      return jsonData != null ? jsonDecode(jsonData) : null;
+
+      if (jsonData == null) return null;
+
+      return jsonDecode(jsonData);
     } catch (e, stackTrace) {
       debugPrint("❌ Error reading analysis from prefs: $e");
       debugPrint(stackTrace.toString());
       return null;
+    }
+  }
+
+  Future<void> loadLatestVideoAnalysisFromServer() async {
+    try {
+      final List<dynamic> reports = await api_service.getASDVideoReports();
+
+      if (reports.isEmpty) {
+        debugPrint("ℹ️ No previous reports found.");
+        return;
+      }
+
+      final latest =
+          reports.first; // assuming backend returns sorted (newest first)
+      debugPrint("✅ Latest Report: $latest");
+
+      // Safely parse values
+      final traits = Map<String, dynamic>.from(latest["detected_traits"] ?? {});
+
+      final prediction =
+          latest["final_prediction"]?["label"]?.toString() ??
+          latest["final_prediction"]?["prediction"]?.toString() ??
+          "UNKNOWN";
+
+      // Ensure confidence always in percentage text form
+      final rawConfidence = latest["final_prediction"]?["confidence"];
+      final confidence =
+          rawConfidence is num
+              ? "${(rawConfidence * 100).toStringAsFixed(2)}%"
+              : rawConfidence?.toString() ?? "0%";
+
+      final videoUrl = latest["videoUrl"]?.toString() ?? "";
+
+      // Save to SharedPreferences
+      await _saveAnalysisToPrefs(
+        traits: traits,
+        prediction: prediction,
+        confidence: confidence,
+        videoUrl: videoUrl,
+      );
+
+      // Now refresh UI by loading again and updating state
+      final data = await _loadAnalysisFromPrefs();
+      if (!mounted) return;
+      setState(() {
+        _analysisData = data;
+      });
+
+      debugPrint("✅ Video analysis loaded & UI updated successfully.");
+    } catch (e, stackTrace) {
+      debugPrint("❌ Error loading previous analysis: $e");
+      debugPrint(stackTrace.toString());
     }
   }
 
@@ -591,7 +635,7 @@ class _TestScreenState extends State<TestScreen>
     duration: const Duration(milliseconds: 500),
     child: Column(
       children: [
-        // Video Upload Section
+        // Title
         const Text(
           "Optional: Upload Video for Analysis",
           style: TextStyle(
@@ -608,6 +652,8 @@ class _TestScreenState extends State<TestScreen>
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 15),
+
+        // Selected Video Name
         if (selectedVideo != null)
           Padding(
             padding: const EdgeInsets.only(bottom: 8.0),
@@ -618,6 +664,8 @@ class _TestScreenState extends State<TestScreen>
               overflow: TextOverflow.ellipsis,
             ),
           ),
+
+        // Buttons Row
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
@@ -626,8 +674,8 @@ class _TestScreenState extends State<TestScreen>
               icon: const Icon(Icons.video_library_outlined, size: 20),
               label: const Text("Choose Video"),
               style: ElevatedButton.styleFrom(
-                foregroundColor: Colors.white,
                 backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
@@ -639,8 +687,8 @@ class _TestScreenState extends State<TestScreen>
                       ? null
                       : analyzeVideo,
               style: ElevatedButton.styleFrom(
-                foregroundColor: Colors.white,
                 backgroundColor: Colors.deepOrange,
+                foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
@@ -666,6 +714,7 @@ class _TestScreenState extends State<TestScreen>
             ),
           ],
         ),
+
         const SizedBox(height: 25),
 
         // Video Preview
@@ -696,12 +745,13 @@ class _TestScreenState extends State<TestScreen>
                   size: 45,
                   color: Colors.deepOrange.shade700,
                 ),
-                onPressed:
-                    () => setState(() {
-                      _videoController!.value.isPlaying
-                          ? _videoController!.pause()
-                          : _videoController!.play();
-                    }),
+                onPressed: () {
+                  setState(() {
+                    _videoController!.value.isPlaying
+                        ? _videoController!.pause()
+                        : _videoController!.play();
+                  });
+                },
               ),
             ],
           )
@@ -710,37 +760,19 @@ class _TestScreenState extends State<TestScreen>
 
         const SizedBox(height: 20),
 
-        // Analysis Results Section
-        FutureBuilder<Map<String, dynamic>?>(
-          future: _loadAnalysisFromPrefs(),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const SizedBox(); // or loading spinner
-            }
-
-            if (!snapshot.hasData || snapshot.data == null) {
-              return const Center(
-                child: Text(
-                  "No analysis data available.",
-                  style: TextStyle(color: Colors.grey),
-                ),
-              );
-            }
-
-            final data = snapshot.data!;
-            final traits = Map<String, dynamic>.from(data['traits'] ?? {});
-            final prediction = data['prediction']?.toString() ?? "UNKNOWN";
-            final confidence = data['confidence']?.toString() ?? "0%";
-            final videoUrl = data['videoUrl']?.toString() ?? "";
-
-            return VideoAnalysisCard(
-              traits: traits,
-              prediction: prediction,
-              confidence: confidence,
-              videoUrl: videoUrl,
-            );
-          },
-        ),
+        // ====== ANALYSIS RESULTS SECTION ======
+        if (_analysisData == null)
+          const Text(
+            "No analysis data available.",
+            style: TextStyle(color: Colors.grey),
+          )
+        else
+          VideoAnalysisCard(
+            traits: Map<String, dynamic>.from(_analysisData!['traits'] ?? {}),
+            prediction: _analysisData!['prediction'] ?? "UNKNOWN",
+            confidence: _analysisData!['confidence'] ?? "0%",
+            videoUrl: _analysisData!['videoUrl'] ?? "",
+          ),
       ],
     ),
   );
