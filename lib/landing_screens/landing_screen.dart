@@ -97,6 +97,7 @@ class _LandingscreenState extends State<Landingscreen> {
                 conversationId: conversationId,
                 isCaller: false, // You are the callee
                 peerSocketId: callerSocketId,
+                isVideoCall: true,
               ),
         ),
       );

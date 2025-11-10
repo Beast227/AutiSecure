@@ -119,6 +119,7 @@ class ADoctorLndingScreenState extends State<DoctorLndingScreen> {
                         conversationId: conversationId,
                         isCaller: false,
                         peerSocketId: callerSocketId,
+                        isVideoCall: true,
                       ),
         ),
       );

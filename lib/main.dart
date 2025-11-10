@@ -76,7 +76,8 @@ Future<void> _handleIncomingCallFromNotification(
                   selfUserId: selfUserId,
                   peerUserId: callerId,
                   conversationId: conversationId,
-                  isCaller: false, // This user is the callee
+                  isCaller: false,
+                  isVideoCall: true, // This user is the callee
                 ),
           ),
         );

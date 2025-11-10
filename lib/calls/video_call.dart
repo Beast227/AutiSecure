@@ -13,7 +13,8 @@ class VideoCall extends StatefulWidget {
   peerUserId; // string id of peer (callee for caller, caller for callee)
   final String conversationId; // conversation id (useful for backend)
   final bool isCaller; // true when this client initiated the call
-  final String? peerSocketId; // <-- ADDED: Known socket ID of peer (for callee)
+  final String? peerSocketId;
+  final bool isVideoCall; // <-- ADDED: Known socket ID of peer (for callee)
 
   const VideoCall({
     super.key,
@@ -22,6 +23,7 @@ class VideoCall extends StatefulWidget {
     required this.selfUserId,
     required this.peerUserId,
     required this.conversationId,
+    required this.isVideoCall,
     this.isCaller = false,
     this.peerSocketId, // <-- ADDED
   });
@@ -548,17 +550,22 @@ class _VideoCallState extends State<VideoCall> {
         );
         break;
       case CallState.connected:
-        bodyContent = Stack(
-          children: [
-            _buildRemoteViewCover(),
-            Positioned(
-              left: 16,
-              bottom: 120, // Position above controls
-              child: _buildLocalPreview(),
+        if (widget.isVideoCall) {
+          bodyContent = Stack(
+            children: [
+              _buildRemoteViewCover(),
+              Positioned(left: 16, bottom: 120, child: _buildLocalPreview()),
+            ],
+          );
+        } else {
+          bodyContent = Center(
+            child: Text(
+              "Voice Call Connected",
+              style: TextStyle(color: Colors.white, fontSize: 22),
             ),
-          ],
-        );
-        break;
+          );
+        }
+
       case CallState.ended:
         bodyContent = const Center(
           child: Text(
@@ -612,15 +619,18 @@ class _VideoCallState extends State<VideoCall> {
                     onPressed: () => _endCallLocal(isError: false),
                     child: const Icon(Icons.call_end),
                   ),
-                  FloatingActionButton(
-                    heroTag: 'cam',
-                    backgroundColor: _isVideoOff ? Colors.red : Colors.white,
-                    onPressed: _toggleVideo,
-                    child: Icon(
-                      _isVideoOff ? Icons.videocam_off : Icons.videocam,
-                      color: _isVideoOff ? Colors.white : Colors.black,
+
+                  // Show Camera button ONLY if this is a video call
+                  if (widget.isVideoCall)
+                    FloatingActionButton(
+                      heroTag: 'cam',
+                      backgroundColor: _isVideoOff ? Colors.red : Colors.white,
+                      onPressed: _toggleVideo,
+                      child: Icon(
+                        _isVideoOff ? Icons.videocam_off : Icons.videocam,
+                        color: _isVideoOff ? Colors.white : Colors.black,
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),

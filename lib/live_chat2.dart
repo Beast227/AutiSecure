@@ -386,7 +386,7 @@ class _LiveLiveChat2State extends State<LiveChat2>
   }
 
   // --- ADDED: Method to start the video call ---
-  Future<void> _startVideoCall() async {
+  Future<void> _startVideoCall({required bool isvideoCall}) async {
     if (selectedConversationId == null ||
         userId == null ||
         _currentPeer == null) {
@@ -426,6 +426,7 @@ class _LiveLiveChat2State extends State<LiveChat2>
               peerUserId: peerUserId,
               conversationId: selectedConversationId!,
               isCaller: true,
+              isVideoCall: isvideoCall,
             ),
       ),
     );
@@ -1093,7 +1094,9 @@ class _LiveLiveChat2State extends State<LiveChat2>
                   color: Colors.white,
                   size: 28,
                 ),
-                onPressed: _startVideoCall, // <-- MODIFIED
+                onPressed: () {
+                  _startVideoCall(isvideoCall: true);
+                }, // <-- MODIFIED
                 tooltip: "Video Call",
               ),
               IconButton(
@@ -1102,7 +1105,9 @@ class _LiveLiveChat2State extends State<LiveChat2>
                   color: Colors.white,
                   size: 24,
                 ),
-                onPressed: _startVoiceCall,
+                onPressed: () {
+                  _startVideoCall(isvideoCall: false);
+                },
                 tooltip: "Voice Call",
               ),
             ],
