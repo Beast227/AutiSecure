@@ -1,7 +1,7 @@
 import 'dart:async'; // <-- ADDED
 import 'dart:convert';
 import 'dart:io';
-import 'package:autisecure/calls/incoming_call.dart';
+import 'package:autisecure/calls/voice_call.dart';
 import 'package:autisecure/services/api_service.dart';
 import 'package:autisecure/login_signup/login_screen.dart';
 import 'package:flutter/material.dart';
@@ -212,8 +212,9 @@ class _LiveLiveChat2State extends State<LiveChat2>
     } catch (e) {
       debugPrint("❌ Error loading conversations: $e");
       if (cachedDataString == null) {
-        if (mounted)
+        if (mounted) {
           _showSnackBar("Could not load conversations.", isError: true);
+        }
       }
     }
   }
@@ -327,9 +328,11 @@ class _LiveLiveChat2State extends State<LiveChat2>
     final List participants = conversation["participants"] ?? [];
     final otherUser = participants.firstWhere(
       (p) => p is Map && p["id"] != userId,
-      orElse: () => participants.isNotEmpty && participants.first is Map
-          ? participants.first
-          : {"name": "Unknown"},
+      orElse:
+          () =>
+              participants.isNotEmpty && participants.first is Map
+                  ? participants.first
+                  : {"name": "Unknown"},
     );
     selectedUser = otherUser["name"] ?? "Unknown User";
     _currentPeer = otherUser; // <-- ADDED: Store the peer's info
@@ -393,7 +396,6 @@ class _LiveLiveChat2State extends State<LiveChat2>
 
     final String peerUserId = _currentPeer!['id']?.toString() ?? '';
     final String peerName = _currentPeer!['name']?.toString() ?? 'Peer';
-    // TODO: You should fetch the current doctor's name and pass it as 'callerName'
     // For now, we'll use a placeholder.
     final String selfName = "Doctor";
 
@@ -416,14 +418,60 @@ class _LiveLiveChat2State extends State<LiveChat2>
     if (!mounted) return;
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => VideoCall(
-          socket: socketService.socket!,
-          callerName: peerName, // Name of the person we are calling
-          selfUserId: userId!,
-          peerUserId: peerUserId,
-          conversationId: selectedConversationId!,
-          isCaller: true,
-        ),
+        builder:
+            (context) => VideoCall(
+              socket: socketService.socket!,
+              callerName: peerName, // Name of the person we are calling
+              selfUserId: userId!,
+              peerUserId: peerUserId,
+              conversationId: selectedConversationId!,
+              isCaller: true,
+            ),
+      ),
+    );
+  }
+
+  // --- ADDED: Method to start the video call ---
+  Future<void> _startVoiceCall() async {
+    if (selectedConversationId == null ||
+        userId == null ||
+        _currentPeer == null) {
+      _showSnackBar("Cannot start call. Chat not fully loaded.", isError: true);
+      return;
+    }
+
+    final String peerUserId = _currentPeer!['id']?.toString() ?? '';
+    final String peerName = _currentPeer!['name']?.toString() ?? 'Peer';
+    final String selfName = "Doctor"; // Replace later with logged-in name
+
+    if (peerUserId.isEmpty) {
+      _showSnackBar("Cannot start call. Peer ID is missing.", isError: true);
+      return;
+    }
+
+    debugPrint("📞 Initiating VOICE call to $peerName ($peerUserId)");
+
+    // 1. Notify peer to show *incoming voice call screen*
+    socketService.initiateVoiceCall(
+      conversationId: selectedConversationId!,
+      fromUserId: userId!,
+      toUserId: peerUserId,
+      callerName: selfName,
+    );
+
+    // 2. Navigate to YOUR Voice Call screen (you are the caller)
+    if (!mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder:
+            (context) => VoiceCall(
+              socket: socketService.socket!,
+              callerName: peerName,
+              selfUserId: userId!,
+              peerUserId: peerUserId,
+              conversationId: selectedConversationId!,
+              isCaller: true,
+            ),
       ),
     );
   }
@@ -488,8 +536,8 @@ class _LiveLiveChat2State extends State<LiveChat2>
                   req['description'] ?? 'No description provided';
               final String appointmentId =
                   req['appointmentId']?.toString() ??
-                      req['_id']?.toString() ??
-                      '';
+                  req['_id']?.toString() ??
+                  '';
 
               return Card(
                 color: approved ? Colors.green.shade50 : Colors.orange.shade50,
@@ -534,24 +582,24 @@ class _LiveLiveChat2State extends State<LiveChat2>
                   trailing:
                       approved
                           ? Icon(
-                              Icons.check_circle_outline,
-                              color: Colors.green.shade600,
-                              size: 28,
-                            )
+                            Icons.check_circle_outline,
+                            color: Colors.green.shade600,
+                            size: 28,
+                          )
                           : Icon(
-                              Icons.pending_actions_outlined,
-                              color: Colors.orange.shade700,
-                              size: 28,
-                            ),
+                            Icons.pending_actions_outlined,
+                            color: Colors.orange.shade700,
+                            size: 28,
+                          ),
                   onTap:
                       approved || appointmentId.isEmpty
                           ? null
                           : () async {
-                              final result = await _showApprovalForm(req);
-                              if (result == true) {
-                                await refreshLists(); // ✅ always reload both lists
-                              }
-                            },
+                            final result = await _showApprovalForm(req);
+                            if (result == true) {
+                              await refreshLists(); // ✅ always reload both lists
+                            }
+                          },
                 ),
               );
             }
@@ -674,8 +722,8 @@ class _LiveLiveChat2State extends State<LiveChat2>
 
     final String appointmentId =
         request['appointmentId']?.toString() ??
-            request['_id']?.toString() ??
-            '';
+        request['_id']?.toString() ??
+        '';
 
     if (appointmentId.isEmpty) {
       _showSnackBar("Cannot approve: Missing appointment ID.", isError: true);
@@ -826,12 +874,13 @@ class _LiveLiveChat2State extends State<LiveChat2>
                               label: const Text("Reject"),
                               onPressed: () async {
                                 setApprovalModalState(
-                                    () => isProcessing = true);
+                                  () => isProcessing = true,
+                                );
                                 try {
                                   final success =
                                       await ApiService.rejectAppointment(
-                                    appointmentId,
-                                  );
+                                        appointmentId,
+                                      );
                                   if (success) {
                                     _showSnackBar(
                                       "Appointment rejected",
@@ -849,7 +898,8 @@ class _LiveLiveChat2State extends State<LiveChat2>
                                 } finally {
                                   if (mounted) {
                                     setApprovalModalState(
-                                        () => isProcessing = false);
+                                      () => isProcessing = false,
+                                    );
                                   }
                                 }
                               },
@@ -886,17 +936,18 @@ class _LiveLiveChat2State extends State<LiveChat2>
                                   return;
                                 }
                                 setApprovalModalState(
-                                    () => isProcessing = true);
+                                  () => isProcessing = true,
+                                );
                                 try {
                                   final success =
                                       await ApiService.approveAppointment(
-                                    requestId: appointmentId,
-                                    date: DateFormat(
-                                      'yyyy-MM-dd',
-                                    ).format(date!),
-                                    startTime: start!.format(context),
-                                    endTime: end!.format(context),
-                                  );
+                                        requestId: appointmentId,
+                                        date: DateFormat(
+                                          'yyyy-MM-dd',
+                                        ).format(date!),
+                                        startTime: start!.format(context),
+                                        endTime: end!.format(context),
+                                      );
                                   if (success) {
                                     _showSnackBar("Appointment approved");
                                     Navigator.pop(context, true);
@@ -914,7 +965,8 @@ class _LiveLiveChat2State extends State<LiveChat2>
                                 } finally {
                                   if (mounted) {
                                     setApprovalModalState(
-                                        () => isProcessing = false);
+                                      () => isProcessing = false,
+                                    );
                                   }
                                 }
                               },
@@ -997,10 +1049,11 @@ class _LiveLiveChat2State extends State<LiveChat2>
           child: Row(
             children: [
               IconButton(
-                onPressed: () => setState(() {
-                  isChatOpen = false;
-                  _currentPeer = null; // <-- MODIFIED: Clear the peer
-                }),
+                onPressed:
+                    () => setState(() {
+                      isChatOpen = false;
+                      _currentPeer = null; // <-- MODIFIED: Clear the peer
+                    }),
                 icon: const Icon(
                   Icons.arrow_back_ios_new,
                   color: Colors.white,
@@ -1049,11 +1102,8 @@ class _LiveLiveChat2State extends State<LiveChat2>
                   color: Colors.white,
                   size: 24,
                 ),
-                onPressed: () => _showSnackBar(
-                  "Audio call not implemented yet.",
-                  isError: true,
-                ),
-                tooltip: "Audio Call",
+                onPressed: _startVoiceCall,
+                tooltip: "Voice Call",
               ),
             ],
           ),
@@ -1062,112 +1112,112 @@ class _LiveLiveChat2State extends State<LiveChat2>
           child:
               messages.isEmpty
                   ? const Center(
-                      child: Text(
-                        "No messages yet. Start chatting!",
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                    )
+                    child: Text(
+                      "No messages yet. Start chatting!",
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  )
                   : ListView.builder(
-                      controller: _scrollController,
-                      reverse: true,
-                      itemCount: messages.length,
-                      padding: const EdgeInsets.all(12),
-                      itemBuilder: (context, index) {
-                        final msg = messages[index];
-                        if (msg == null ||
-                            msg is! Map ||
-                            msg["message"] == null ||
-                            msg["sender"] == null) {
-                          return const SizedBox.shrink();
-                        }
+                    controller: _scrollController,
+                    reverse: true,
+                    itemCount: messages.length,
+                    padding: const EdgeInsets.all(12),
+                    itemBuilder: (context, index) {
+                      final msg = messages[index];
+                      if (msg == null ||
+                          msg is! Map ||
+                          msg["message"] == null ||
+                          msg["sender"] == null) {
+                        return const SizedBox.shrink();
+                      }
 
-                        dynamic senderData = msg['sender'];
-                        String senderId = "";
-                        if (senderData is Map<String, dynamic>) {
-                          senderId = senderData['id']?.toString() ?? '';
-                        } else {
-                          senderId = senderData?.toString() ?? '';
-                        }
-                        final isMe = senderId == userId;
+                      dynamic senderData = msg['sender'];
+                      String senderId = "";
+                      if (senderData is Map<String, dynamic>) {
+                        senderId = senderData['id']?.toString() ?? '';
+                      } else {
+                        senderId = senderData?.toString() ?? '';
+                      }
+                      final isMe = senderId == userId;
 
-                        final bool isLocalFile = msg["filePath"] != null;
-                        final bool isVideo = msg["message"].toString().contains(
-                              "[Video File",
-                            );
+                      final bool isLocalFile = msg["filePath"] != null;
+                      final bool isVideo = msg["message"].toString().contains(
+                        "[Video File",
+                      );
 
-                        return Align(
-                          alignment:
-                              isMe ? Alignment.centerRight : Alignment.centerLeft,
-                          child: Container(
-                            constraints: BoxConstraints(
-                              maxWidth: MediaQuery.of(context).size.width * 0.75,
+                      return Align(
+                        alignment:
+                            isMe ? Alignment.centerRight : Alignment.centerLeft,
+                        child: Container(
+                          constraints: BoxConstraints(
+                            maxWidth: MediaQuery.of(context).size.width * 0.75,
+                          ),
+                          margin: const EdgeInsets.symmetric(vertical: 5),
+                          padding:
+                              isLocalFile
+                                  ? const EdgeInsets.symmetric(
+                                    vertical: 8,
+                                    horizontal: 12,
+                                  )
+                                  : const EdgeInsets.symmetric(
+                                    vertical: 10,
+                                    horizontal: 14,
+                                  ),
+                          decoration: BoxDecoration(
+                            color:
+                                isMe
+                                    ? Colors.orange.shade200
+                                    : Colors.grey.shade200,
+                            borderRadius: BorderRadius.only(
+                              topLeft: Radius.circular(16),
+                              topRight: Radius.circular(16),
+                              bottomLeft: Radius.circular(isMe ? 16 : 0),
+                              bottomRight: Radius.circular(isMe ? 0 : 16),
                             ),
-                            margin: const EdgeInsets.symmetric(vertical: 5),
-                            padding:
-                                isLocalFile
-                                    ? const EdgeInsets.symmetric(
-                                        vertical: 8,
-                                        horizontal: 12,
-                                      )
-                                    : const EdgeInsets.symmetric(
-                                        vertical: 10,
-                                        horizontal: 14,
-                                      ),
-                            decoration: BoxDecoration(
-                              color:
-                                  isMe
-                                      ? Colors.orange.shade200
-                                      : Colors.grey.shade200,
-                              borderRadius: BorderRadius.only(
-                                topLeft: Radius.circular(16),
-                                topRight: Radius.circular(16),
-                                bottomLeft: Radius.circular(isMe ? 16 : 0),
-                                bottomRight: Radius.circular(isMe ? 0 : 16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 3,
+                                offset: const Offset(0, 1),
                               ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.05),
-                                  blurRadius: 3,
-                                  offset: const Offset(0, 1),
-                                ),
-                              ],
-                            ),
-                            child:
-                                isLocalFile
-                                    ? Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            isVideo
-                                                ? Icons.videocam_outlined
-                                                : Icons.image_outlined,
-                                            color: Colors.grey.shade700,
-                                            size: 20,
+                            ],
+                          ),
+                          child:
+                              isLocalFile
+                                  ? Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        isVideo
+                                            ? Icons.videocam_outlined
+                                            : Icons.image_outlined,
+                                        color: Colors.grey.shade700,
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Flexible(
+                                        child: Text(
+                                          msg["message"].toString(),
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            color: Colors.black87,
+                                            fontStyle: FontStyle.italic,
                                           ),
-                                          const SizedBox(width: 8),
-                                          Flexible(
-                                            child: Text(
-                                              msg["message"].toString(),
-                                              style: const TextStyle(
-                                                fontSize: 16,
-                                                color: Colors.black87,
-                                                fontStyle: FontStyle.italic,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      )
-                                    : Text(
-                                        msg["message"].toString(),
-                                        style: const TextStyle(
-                                          fontSize: 16,
-                                          color: Colors.black87,
                                         ),
                                       ),
-                          ),
-                        );
-                      },
-                    ),
+                                    ],
+                                  )
+                                  : Text(
+                                    msg["message"].toString(),
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                        ),
+                      );
+                    },
+                  ),
         ),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -1336,8 +1386,8 @@ class _LiveLiveChat2State extends State<LiveChat2>
           final String lastMessageTime =
               convo['updatedAt'] != null
                   ? DateFormat(
-                      'h:mm a',
-                    ).format(DateTime.parse(convo['updatedAt']).toLocal())
+                    'h:mm a',
+                  ).format(DateTime.parse(convo['updatedAt']).toLocal())
                   : '';
           final String? otherUserImageUrl = otherUser['imageUrl'];
 
@@ -1360,13 +1410,13 @@ class _LiveLiveChat2State extends State<LiveChat2>
                     (otherUserImageUrl != null && otherUserImageUrl.isNotEmpty)
                         ? null
                         : Text(
-                            initial,
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.orange.shade800,
-                            ),
+                          initial,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.orange.shade800,
                           ),
+                        ),
               ),
               title: Text(
                 otherUserName,
@@ -1423,24 +1473,24 @@ class _LiveLiveChat2State extends State<LiveChat2>
       floatingActionButton:
           !isChatOpen && userRole == "Doctor"
               ? badges.Badge(
-                  showBadge: _pendingCount > 0,
-                  position: badges.BadgePosition.topEnd(top: -4, end: -4),
-                  badgeContent: Text(
-                    _pendingCount.toString(),
-                    style: const TextStyle(color: Colors.white, fontSize: 12),
+                showBadge: _pendingCount > 0,
+                position: badges.BadgePosition.topEnd(top: -4, end: -4),
+                badgeContent: Text(
+                  _pendingCount.toString(),
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                ),
+                badgeStyle: const badges.BadgeStyle(badgeColor: Colors.red),
+                child: FloatingActionButton(
+                  backgroundColor: Colors.orange.shade700,
+                  onPressed: _showAppointmentsSheet,
+                  tooltip: "View Appointments",
+                  child: const Icon(
+                    Icons.calendar_month_outlined,
+                    size: 28,
+                    color: Colors.white,
                   ),
-                  badgeStyle: const badges.BadgeStyle(badgeColor: Colors.red),
-                  child: FloatingActionButton(
-                    backgroundColor: Colors.orange.shade700,
-                    onPressed: _showAppointmentsSheet,
-                    tooltip: "View Appointments",
-                    child: const Icon(
-                      Icons.calendar_month_outlined,
-                      size: 28,
-                      color: Colors.white,
-                    ),
-                  ),
-                )
+                ),
+              )
               : null,
       body: SafeArea(
         child: AnimatedSwitcher(
@@ -1452,11 +1502,11 @@ class _LiveLiveChat2State extends State<LiveChat2>
           child:
               _isLoading
                   ? const Center(
-                      child: CircularProgressIndicator(color: Colors.orange),
-                    )
+                    child: CircularProgressIndicator(color: Colors.orange),
+                  )
                   : isChatOpen
-                      ? _buildChatWindow()
-                      : _buildChatList(),
+                  ? _buildChatWindow()
+                  : _buildChatList(),
         ),
       ),
     );

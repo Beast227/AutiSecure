@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:animations/animations.dart';
-import 'package:autisecure/mainScreens/doctor/analysis/video_analysis.dart';
+import 'package:autisecure/widgets/analysis/video_analysis.dart';
 import 'package:autisecure/services/api_service.dart' as api_service;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';

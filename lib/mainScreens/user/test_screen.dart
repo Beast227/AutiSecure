@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:animations/animations.dart';
-import 'package:autisecure/mainScreens/doctor/analysis/video_analysis.dart';
+import 'package:autisecure/widgets/analysis/video_analysis.dart';
 import 'package:autisecure/services/api_service.dart' as api_service;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -348,7 +348,8 @@ class _TestScreenState extends State<TestScreen>
     try {
       final result = await api_service.submitSurvey(payload);
       if (!mounted) return;
-
+      debugPrint("$result");
+      debugPrint("✅ error submitting data");
       final receivedScore = result["score"] as int?;
       if (receivedScore != null) {
         setState(() {
@@ -363,14 +364,19 @@ class _TestScreenState extends State<TestScreen>
         );
 
         _showSnackBar(result["message"] ?? "Survey submitted successfully!");
+        debugPrint(result["message"] ?? "Survey submitted successfully!");
+        debugPrint("✅ error submitting data");
       } else {
         _showSnackBar(
           result["message"] ?? "Score not received.",
           isError: true,
         );
+        debugPrint(result["message"] ?? "✅Score not received.");
+        debugPrint("✅ error submitting data");
       }
     } catch (e) {
       _showSnackBar("Error submitting survey: $e", isError: true);
+      debugPrint("✅Error submitting survey: $e");
     }
   }
 

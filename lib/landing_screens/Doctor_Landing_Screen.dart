@@ -1,7 +1,9 @@
 // ignore: file_names
 import 'dart:async';
+import 'package:autisecure/calls/incoming_voice_call.dart';
 import 'package:autisecure/calls/video_call.dart';
 import 'package:autisecure/calls/incoming_call.dart';
+import 'package:autisecure/calls/voice_call.dart';
 import 'package:autisecure/services/socket_service.dart';
 import 'package:autisecure/globals.dart' as globals;
 import 'package:autisecure/mainScreens/doctor/doc_test_screen.dart';
@@ -40,10 +42,14 @@ class ADoctorLndingScreenState extends State<DoctorLndingScreen> {
 
   Future<void> _loadUserIdAndListenForCalls() async {
     final prefs = await SharedPreferences.getInstance();
-    _selfUserId = prefs.getString('userId'); // ⚠️ Make sure this key is correct!
+    _selfUserId = prefs.getString(
+      'userId',
+    ); // ⚠️ Make sure this key is correct!
 
     // Listen to the stream from SocketService
-    _callSubscription = _socketService.incomingCallStream.listen(_onIncomingCall);
+    _callSubscription = _socketService.incomingCallStream.listen(
+      _onIncomingCall,
+    );
     debugPrint("📞 [LandingScreen] Subscribed to incomingCallStream");
   }
 
@@ -52,48 +58,72 @@ class ADoctorLndingScreenState extends State<DoctorLndingScreen> {
     if (!mounted || _selfUserId == null) return;
 
     final String conversationId = data['conversationId']?.toString() ?? '';
-    final String callerName = data['callerName']?.toString() ?? 'Unknown Caller';
+    final String callerName =
+        data['callerName']?.toString() ?? 'Unknown Caller';
     final String callerId = data['callerId']?.toString() ?? '';
     final String callerSocketId = data['callerSocketId']?.toString() ?? '';
+    final String callType =
+        data['callType']?.toString() ?? 'video'; // voice or video
 
     if (conversationId.isEmpty || callerId.isEmpty || callerSocketId.isEmpty) {
-      debugPrint("❌ [LandingScreen] Incoming call data is incomplete. Ignoring.");
+      debugPrint("❌ Incoming call data incomplete. Ignoring.");
       return;
     }
 
-    // 1. Show the ringing screen
+    // 1) Show the correct incoming UI based on callType
     final bool? didAccept = await Navigator.of(context).push(
       MaterialPageRoute(
         fullscreenDialog: true,
-        builder: (context) => IncomingCallScreen(
-          callerName: callerName,
-          conversationId: conversationId,
-          data: data,
-        ),
+        builder:
+            (context) =>
+                callType == "voice"
+                    ? IncomingVoiceCallScreen(
+                      callerName: callerName,
+                      conversationId: conversationId,
+                      data: data,
+                    )
+                    : IncomingVideoCallScreen(
+                      callerName: callerName,
+                      conversationId: conversationId,
+                      data: data,
+                    ),
       ),
     );
 
-    // 2. Handle the user's choice
+    // 2) If accepted → navigate to the appropriate call screen
     if (didAccept == true) {
-      debugPrint("✅ [LandingScreen] Call accepted by user.");
+      debugPrint("✅ Call accepted");
       _socketService.acceptCall(conversationId, callerSocketId);
 
       if (!mounted) return;
+
       Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (context) => VideoCall(
-            socket: _socketService.socket!,
-            callerName: callerName,
-            selfUserId: _selfUserId!,
-            peerUserId: callerId,
-            conversationId: conversationId,
-            isCaller: false, // You are the callee
-            peerSocketId: callerSocketId,
-          ),
+          builder:
+              (context) =>
+                  callType == "voice"
+                      ? VoiceCall(
+                        socket: _socketService.socket!,
+                        callerName: callerName,
+                        selfUserId: _selfUserId!,
+                        peerUserId: callerId,
+                        conversationId: conversationId,
+                        isCaller: false,
+                        peerSocketId: callerSocketId,
+                      )
+                      : VideoCall(
+                        socket: _socketService.socket!,
+                        callerName: callerName,
+                        selfUserId: _selfUserId!,
+                        peerUserId: callerId,
+                        conversationId: conversationId,
+                        isCaller: false,
+                        peerSocketId: callerSocketId,
+                      ),
         ),
       );
     } else {
-      debugPrint("❌ [LandingScreen] Call rejected by user.");
+      debugPrint("❌ Call rejected");
       _socketService.rejectCall(conversationId, callerSocketId);
     }
   }
@@ -179,10 +209,7 @@ class ADoctorLndingScreenState extends State<DoctorLndingScreen> {
         backgroundColor: Colors.orange,
         title: buildHeader(),
       ),
-      body: IndexedStack(
-      index: globals.selectedIndex,
-      children: pages,
-      ),
+      body: IndexedStack(index: globals.selectedIndex, children: pages),
       bottomNavigationBar: buildBottomNavBar(),
     );
   }

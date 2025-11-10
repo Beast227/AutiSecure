@@ -162,6 +162,28 @@ class SocketService {
     debugPrint("📞 [SocketService] initiateCall => $payload");
   }
 
+  void initiateVoiceCall({
+    required String conversationId,
+    required String fromUserId,
+    required String toUserId,
+    required String callerName,
+  }) {
+    if (!isConnected) {
+      debugPrint("⚠️ Tried initiating VOICE call before connection");
+      return;
+    }
+
+    final payload = {
+      'conversationId': conversationId,
+      'from': fromUserId,
+      'to': toUserId,
+      'callerName': callerName,
+    };
+
+    socket!.emit('initiateVoiceCall', payload);
+    debugPrint("🎙️ [SocketService] initiateVoiceCall => $payload");
+  }
+
   /// Callee accepts the call
   void acceptCall(String conversationId, String toSocketId) {
     if (!isConnected) return;

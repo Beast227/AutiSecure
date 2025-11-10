@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
-class IncomingVideoCallScreen extends StatefulWidget {
+class IncomingVoiceCallScreen extends StatefulWidget {
   final String callerName;
   final String conversationId;
-  final dynamic data; // optional additional data
+  final dynamic data;
 
-  const IncomingVideoCallScreen({
+  const IncomingVoiceCallScreen({
     super.key,
     required this.callerName,
     required this.conversationId,
@@ -13,11 +13,11 @@ class IncomingVideoCallScreen extends StatefulWidget {
   });
 
   @override
-  State<IncomingVideoCallScreen> createState() =>
-      _IncomingVideoCallScreenState();
+  State<IncomingVoiceCallScreen> createState() =>
+      _IncomingVoiceCallScreenState();
 }
 
-class _IncomingVideoCallScreenState extends State<IncomingVideoCallScreen>
+class _IncomingVoiceCallScreenState extends State<IncomingVoiceCallScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _anim;
 
@@ -46,15 +46,16 @@ class _IncomingVideoCallScreenState extends State<IncomingVideoCallScreen>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
-              "Incoming Video Call",
-              style: TextStyle(color: Colors.white, fontSize: 20),
+              "Incoming Voice Call",
+              style: const TextStyle(color: Colors.white, fontSize: 20),
             ),
             const SizedBox(height: 12),
             Text(
               widget.callerName,
-              style: TextStyle(color: Colors.white70, fontSize: 18),
+              style: const TextStyle(color: Colors.white70, fontSize: 18),
             ),
             const SizedBox(height: 36),
+
             Center(
               child: SizedBox(
                 height: 180,
@@ -75,15 +76,17 @@ class _IncomingVideoCallScreenState extends State<IncomingVideoCallScreen>
                         ),
                       ),
                     ),
+
                     CircleAvatar(
                       radius: 50,
                       backgroundColor: Colors.green,
-                      child: Icon(Icons.person, color: Colors.white, size: 48),
+                      child: Icon(Icons.phone, color: Colors.white, size: 48),
                     ),
                   ],
                 ),
               ),
             ),
+
             const SizedBox(height: 40),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,

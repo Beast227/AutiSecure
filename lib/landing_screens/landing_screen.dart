@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'package:autisecure/calls/video_call.dart';
 import 'package:autisecure/calls/incoming_call.dart';
+import 'package:autisecure/live_chat2.dart';
 import 'package:autisecure/services/socket_service.dart';
 import 'package:autisecure/globals.dart' as globals;
 import 'package:autisecure/mainScreens/user/home_page.dart';
-import 'package:autisecure/mainScreens/user/live_chat.dart';
 import 'package:autisecure/mainScreens/user/test_screen.dart';
 import 'package:autisecure/mainScreens/user/doctor_screen.dart';
 import 'package:autisecure/mainScreens/user/profile.dart';
@@ -72,7 +72,7 @@ class _LandingscreenState extends State<Landingscreen> {
       MaterialPageRoute(
         fullscreenDialog: true,
         builder:
-            (context) => IncomingCallScreen(
+            (context) => IncomingVideoCallScreen(
               callerName: callerName,
               conversationId: conversationId,
               data: data,
