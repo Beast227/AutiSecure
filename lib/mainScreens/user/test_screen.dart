@@ -60,11 +60,15 @@ class _TestScreenState extends State<TestScreen>
     loadLatestVideoAnalysisFromServer();
   }
 
+  final ScrollController _scrollController = ScrollController();
+
   @override
   void dispose() {
     _videoController?.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
+
 
   void _showSnackBar(String message, {bool isError = false}) {
     if (!mounted) return;
@@ -462,91 +466,111 @@ class _TestScreenState extends State<TestScreen>
             centerTitle: true,
             automaticallyImplyLeading: false,
           ),
-          body: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // --- AQ Score ---
-                if (aqScore > 0)
-                  ZoomIn(
-                    duration: const Duration(milliseconds: 500),
-                    child: _buildScoreCard(surveyState),
-                  )
-                // --- Survey ---
-                else if (questions.isNotEmpty) ...[
-                  FadeInDown(
-                    duration: const Duration(milliseconds: 400),
-                    child: ProgressHeader(
-                      currentIndex: surveyState.currentIndex,
-                      totalQuestions: questions.length,
-                      progress: progress,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
+          body: RefreshIndicator(
+            onRefresh: () async {
+              // Reload survey, analysis, and server data
+              await loadSurveyData();
+              await _loadAnalysisFromPrefsAndSetState();
+              await loadLatestVideoAnalysisFromServer();
 
-                  // *** Updated Animation Section ***
-                  PageTransitionSwitcher(
-                    duration: const Duration(milliseconds: 750),
-                    transitionBuilder: (
-                      Widget child,
-                      Animation<double> primaryAnimation,
-                      Animation<double> secondaryAnimation,
-                    ) {
-                      return SharedAxisTransition(
-                        animation: primaryAnimation,
-                        secondaryAnimation: secondaryAnimation,
-                        transitionType: SharedAxisTransitionType.horizontal,
-                        child: child,
-                      );
-                    },
-                    child: QuestionCard(
-                      key: ValueKey('question_${surveyState.currentIndex}'),
-                      question: questions[surveyState.currentIndex],
-                      options: fixedOptions,
-                      selectedAnswer:
-                          surveyState.selectedAnswers[surveyState.currentIndex],
-                      onOptionSelected: (value) {
-                        surveyState.updateAnswer(
-                          surveyState.currentIndex,
-                          value,
+              // Scroll to top after refresh
+              _scrollController.animateTo(
+                0.0,
+                duration: const Duration(milliseconds: 400),
+                curve: Curves.easeInOut,
+              );
+            },
+            child: SingleChildScrollView(
+              controller: _scrollController,
+              padding: const EdgeInsets.all(16),
+              physics:
+                  const AlwaysScrollableScrollPhysics(), // ensures pull works even if content < screen
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // --- AQ Score ---
+                  if (aqScore > 0)
+                    ZoomIn(
+                      duration: const Duration(milliseconds: 500),
+                      child: _buildScoreCard(surveyState),
+                    )
+                  // --- Survey ---
+                  else if (questions.isNotEmpty) ...[
+                    FadeInDown(
+                      duration: const Duration(milliseconds: 400),
+                      child: ProgressHeader(
+                        currentIndex: surveyState.currentIndex,
+                        totalQuestions: questions.length,
+                        progress: progress,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // *** Updated Animation Section ***
+                    PageTransitionSwitcher(
+                      duration: const Duration(milliseconds: 750),
+                      transitionBuilder: (
+                        Widget child,
+                        Animation<double> primaryAnimation,
+                        Animation<double> secondaryAnimation,
+                      ) {
+                        return SharedAxisTransition(
+                          animation: primaryAnimation,
+                          secondaryAnimation: secondaryAnimation,
+                          transitionType: SharedAxisTransitionType.horizontal,
+                          child: child,
                         );
-
-                        // Move to next question automatically *if not last*
-                        if (surveyState.currentIndex < questions.length - 1) {
-                          Future.delayed(const Duration(milliseconds: 300), () {
-                            surveyState.nextQuestion();
-                          });
-                        } else {
-                          // Auto-submit when last answer is selected
-                          submitAnswers();
-                        }
                       },
+                      child: QuestionCard(
+                        key: ValueKey('question_${surveyState.currentIndex}'),
+                        question: questions[surveyState.currentIndex],
+                        options: fixedOptions,
+                        selectedAnswer:
+                            surveyState.selectedAnswers[surveyState
+                                .currentIndex],
+                        onOptionSelected: (value) {
+                          surveyState.updateAnswer(
+                            surveyState.currentIndex,
+                            value,
+                          );
+
+                          if (surveyState.currentIndex < questions.length - 1) {
+                            Future.delayed(
+                              const Duration(milliseconds: 300),
+                              () {
+                                surveyState.nextQuestion();
+                              },
+                            );
+                          } else {
+                            submitAnswers();
+                          }
+                        },
+                      ),
                     ),
-                  ),
 
-                  const SizedBox(height: 20),
-                  NavigationButtons(
-                    isFirstQuestion: surveyState.currentIndex == 0,
-                    isLastQuestion:
-                        surveyState.currentIndex == questions.length - 1,
-                    onNext: surveyState.nextQuestion,
-                    onBack: surveyState.previousQuestion,
-                    onSubmit: submitAnswers,
-                    canSubmit: canSubmitSurvey,
+                    const SizedBox(height: 20),
+                    NavigationButtons(
+                      isFirstQuestion: surveyState.currentIndex == 0,
+                      isLastQuestion:
+                          surveyState.currentIndex == questions.length - 1,
+                      onNext: surveyState.nextQuestion,
+                      onBack: surveyState.previousQuestion,
+                      onSubmit: submitAnswers,
+                      canSubmit: canSubmitSurvey,
+                    ),
+                  ],
+                  const SizedBox(height: 30),
+
+                  // --- Video Section ---
+                  const Divider(
+                    thickness: 1.5,
+                    height: 40,
+                    indent: 20,
+                    endIndent: 20,
                   ),
+                  _buildVideoSection(),
                 ],
-                const SizedBox(height: 30),
-
-                // --- Video Section ---
-                const Divider(
-                  thickness: 1.5,
-                  height: 40,
-                  indent: 20,
-                  endIndent: 20,
-                ),
-                _buildVideoSection(),
-              ],
+              ),
             ),
           ),
         );

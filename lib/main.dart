@@ -168,6 +168,7 @@ Future<void> setupFCM() async {
   });
 }
 
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: ".env");
@@ -180,6 +181,8 @@ Future<void> main() async {
   RemoteMessage? initialMessage =
       await FirebaseMessaging.instance.getInitialMessage();
   if (initialMessage != null) {
+
+    
     debugPrint('📲 Notification tapped! (Terminated)');
     // We add a small delay to ensure the UI is ready before navigating
     Future.delayed(const Duration(seconds: 1), () {
@@ -280,3 +283,4 @@ class _SplashScreenState extends State<SplashScreen> {
     );
   }
 }
+

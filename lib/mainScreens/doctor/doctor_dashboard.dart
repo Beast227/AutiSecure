@@ -1,6 +1,5 @@
 import 'package:autisecure/globals.dart' as globals;
 import 'package:autisecure/landing_screens/Doctor_Landing_Screen.dart';
-import 'package:autisecure/landing_screens/landing_screen.dart';
 import 'package:autisecure/widgets/cards.dart';
 import 'package:flutter/material.dart';
 

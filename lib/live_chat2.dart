@@ -2,6 +2,7 @@ import 'dart:async'; // <-- ADDED
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
@@ -20,7 +21,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:autisecure/services/socket_service.dart';
 
 // --- ADD THESE IMPORTS ---
-import 'package:autisecure/calls/video_call.dart'; // Import your VideoCall screen
+import 'package:autisecure/calls/video_call.dart';
+import 'package:video_compress/video_compress.dart'; // Import your VideoCall screen
 // --- END IMPORTS ---
 
 class LiveChat2 extends StatefulWidget {
@@ -74,6 +76,74 @@ class _LiveLiveChat2State extends State<LiveChat2>
     socketService.offMessageReceived(_handleIncomingMessage);
     socketService.disconnect();
     super.dispose();
+  }
+
+  Future<String?> uploadFileToCloudinary({
+    required File file,
+    required String fileType, // "video", "image", "raw"
+  }) async {
+    final cloudName = dotenv.env['CLOUDINARY_CLOUD_NAME'];
+    final uploadPreset = dotenv.env['CLOUDINARY_UPLOAD_PRESET'];
+
+    if (cloudName == null || uploadPreset == null) {
+      _showSnackBar("Cloudinary configuration missing.", isError: true);
+      return null;
+    }
+
+    _showSnackBar("Uploading $fileType...");
+
+    try {
+      File fileToUpload = file;
+
+      // Compress video only
+      if (fileType == "video") {
+        final compressed = await VideoCompress.compressVideo(
+          file.path,
+          quality: VideoQuality.MediumQuality,
+          deleteOrigin: false,
+          includeAudio: true,
+        );
+        if (compressed?.file != null) fileToUpload = compressed!.file!;
+      }
+
+      // Choose Cloudinary endpoint
+      String resourceType =
+          fileType == "video"
+              ? "video"
+              : fileType == "image"
+              ? "image"
+              : "raw"; // for documents and other files
+
+      final url = Uri.parse(
+        "https://api.cloudinary.com/v1_1/$cloudName/$resourceType/upload",
+      );
+
+      final request =
+          http.MultipartRequest("POST", url)
+            ..fields["upload_preset"] = uploadPreset
+            ..files.add(
+              await http.MultipartFile.fromPath("file", fileToUpload.path),
+            );
+
+      final response = await request.send().timeout(const Duration(minutes: 5));
+      final resBody = await http.Response.fromStream(response);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(resBody.body);
+        _showSnackBar("$fileType uploaded successfully.");
+        debugPrint("✅ $fileType uploaded: ${data['secure_url']}");
+        return data["secure_url"];
+      } else {
+        _showSnackBar("Upload failed (${response.statusCode})", isError: true);
+        debugPrint("❌ Upload failed: ${resBody.body}");
+        return null;
+      }
+    } catch (e, stackTrace) {
+      _showSnackBar("Error uploading $fileType: $e", isError: true);
+      debugPrint("❌ Error uploading $fileType: $e");
+      debugPrint(stackTrace.toString());
+      return null;
+    }
   }
 
   Future<void> _loadDoctorDetailsAndInitialData() async {
@@ -388,7 +458,7 @@ class _LiveLiveChat2State extends State<LiveChat2>
                               ],
                             ),
                           )
-                          .toList(),
+                          ,
                     ],
                   ),
 
@@ -412,155 +482,6 @@ class _LiveLiveChat2State extends State<LiveChat2>
       debugPrint("❌ ERROR in downloadUserReport(): $e");
     }
   }
-
-  // Future<void> downloadUserReport(String otherUserId) async {
-  //   try {
-  //     debugPrint(
-  //       "📌 STEP 1: Starting downloadUserReport() for userId = $otherUserId",
-  //     );
-
-  //     final prefs = await SharedPreferences.getInstance();
-  //     final token = prefs.getString('token');
-  //     if (token == null) return;
-
-  //     final response = await http.post(
-  //       Uri.parse(
-  //         "https://autisense-backend.onrender.com/api/doctor/user-info",
-  //       ),
-  //       headers: {
-  //         "Content-Type": "application/json",
-  //         "Authorization": "Bearer $token",
-  //       },
-  //       body: jsonEncode({"userId": otherUserId}),
-  //     );
-
-  //     if (response.statusCode != 200) return;
-
-  //     final data = jsonDecode(response.body);
-  //     final user = data["user"] ?? {};
-  //     final survey = data["survey"] ?? {};
-  //     final video = data["video"] ?? {};
-
-  //     final roboto = pw.Font.ttf(
-  //       await rootBundle.load("fonts/Roboto-VariableFont_wdth,wght.ttf"),
-  //     );
-  //     final pacifico = pw.Font.ttf(
-  //       await rootBundle.load("fonts/Pacifico-Regular.ttf"),
-  //     );
-  //     final merriweather = pw.Font.ttf(
-  //       await rootBundle.load("fonts/Merriweather-BoldItalic.ttf"),
-  //     );
-
-  //     final pdf = pw.Document();
-
-  //     pdf.addPage(
-  //       pw.MultiPage(
-  //         pageFormat: PdfPageFormat.a4,
-  //         margin: pw.EdgeInsets.all(32),
-  //         build:
-  //             (context) => [
-  //               // HEADER
-  //               pw.Center(
-  //                 child: pw.Text(
-  //                   "ASD User Report",
-  //                   style: pw.TextStyle(fontSize: 28, font: pacifico),
-  //                 ),
-  //               ),
-  //               pw.Divider(thickness: 2),
-  //               pw.SizedBox(height: 20),
-
-  //               // USER INFO
-  //               pw.Text(
-  //                 "User Information",
-  //                 style: pw.TextStyle(fontSize: 22, font: merriweather),
-  //               ),
-  //               pw.SizedBox(height: 10),
-  //               pw.Bullet(
-  //                 text: "Name: ${user['name'] ?? 'N/A'}",
-  //                 style: pw.TextStyle(font: roboto),
-  //               ),
-  //               pw.Bullet(
-  //                 text: "Email: ${user['email'] ?? 'N/A'}",
-  //                 style: pw.TextStyle(font: roboto),
-  //               ),
-  //               pw.Bullet(
-  //                 text: "Phone: ${user['phone'] ?? 'N/A'}",
-  //                 style: pw.TextStyle(font: roboto),
-  //               ),
-  //               pw.Bullet(
-  //                 text: "DOB: ${user['dob'] ?? 'N/A'}",
-  //                 style: pw.TextStyle(font: roboto),
-  //               ),
-  //               pw.Bullet(
-  //                 text: "Address: ${user['address'] ?? 'N/A'}",
-  //                 style: pw.TextStyle(font: roboto),
-  //               ),
-  //               pw.SizedBox(height: 20),
-
-  //               // SURVEY RESULTS AS TABLE
-  //               pw.Text(
-  //                 "Survey Results",
-  //                 style: pw.TextStyle(fontSize: 22, font: merriweather),
-  //               ),
-  //               pw.SizedBox(height: 10),
-  //               if (survey.isEmpty)
-  //                 pw.Text(
-  //                   "No survey data available",
-  //                   style: pw.TextStyle(fontSize: 14, font: roboto),
-  //                 )
-  //               else
-  //                 pw.Table.fromTextArray(
-  //                   headers: ["Question #", "Response"],
-  //                   data: List<List<String>>.generate(
-  //                     (survey['responses'] as List<dynamic>).length,
-  //                     (index) => [
-  //                       (index + 1).toString(),
-  //                       survey['responses'][index].toString(),
-  //                     ],
-  //                   ),
-  //                   headerStyle: pw.TextStyle(font: merriweather, fontSize: 14),
-  //                   cellStyle: pw.TextStyle(font: roboto, fontSize: 12),
-  //                   cellAlignment: pw.Alignment.centerLeft,
-  //                   headerDecoration: pw.BoxDecoration(
-  //                     color: PdfColors.grey300,
-  //                   ),
-  //                   border: pw.TableBorder.all(color: PdfColors.grey),
-  //                 ),
-  //               pw.SizedBox(height: 20),
-
-  //               // VIDEO ANALYSIS
-  //               pw.Text(
-  //                 "Video Analysis",
-  //                 style: pw.TextStyle(fontSize: 22, font: merriweather),
-  //               ),
-  //               pw.SizedBox(height: 10),
-  //               pw.Text(
-  //                 video == null || video.isEmpty
-  //                     ? "No video analysis available"
-  //                     : jsonEncode(video),
-  //                 style: pw.TextStyle(fontSize: 14, font: roboto),
-  //                 softWrap: true,
-  //               ),
-  //               pw.SizedBox(height: 20),
-
-  //               // FOOTER
-  //               pw.Divider(thickness: 1),
-  //               pw.Center(
-  //                 child: pw.Text(
-  //                   "Generated on ${DateTime.now()}",
-  //                   style: pw.TextStyle(fontSize: 12, font: roboto),
-  //                 ),
-  //               ),
-  //             ],
-  //       ),
-  //     );
-
-  //     final pdfBytes = await pdf.save();
-  //     await Printing.layoutPdf(onLayout: (format) async => pdfBytes);
-  //   } catch (e) {
-  //     debugPrint("❌ ERROR in downloadUserReport(): $e");
-  //   }
-  // }
 
   void _handleIncomingMessage(dynamic data) {
     debugPrint('SOCKET: Message Received: $data');
@@ -650,8 +571,9 @@ class _LiveLiveChat2State extends State<LiveChat2>
     }
 
     try {
+      debugPrint("$userRole");
       final List<Map<String, dynamic>> fetchedConversations =
-          await ApiService.fetchConversations(role: 'doctor');
+          await ApiService.fetchConversations(role: "doctor");
 
       if (!mounted) return;
 
@@ -673,7 +595,7 @@ class _LiveLiveChat2State extends State<LiveChat2>
       debugPrint("❌ Error loading conversations: $e");
       if (cachedDataString == null) {
         if (mounted) {
-          _showSnackBar("Could not load conversations.", isError: true);
+          debugPrint("Could not load conversations");
         }
       }
     }
@@ -752,7 +674,7 @@ class _LiveLiveChat2State extends State<LiveChat2>
       if (prefs.getString(_pendingCacheKey) == null &&
           prefs.getString(_approvedCacheKey) == null) {
         if (mounted) {
-          _showSnackBar("Could not load appointments.", isError: true);
+          debugPrint("Could not load appointments");
         }
       }
     }
@@ -818,8 +740,9 @@ class _LiveLiveChat2State extends State<LiveChat2>
   Future<void> _sendMessage() async {
     // ... existing logic (no changes needed) ...
     final text = messageController.text.trim();
-    if (text.isEmpty || selectedConversationId == null || userId == null)
+    if (text.isEmpty || selectedConversationId == null || userId == null) {
       return;
+    }
 
     if (!socketService.isConnected) {
       _showSnackBar("Not connected. Reconnecting...", isError: true);
@@ -907,17 +830,15 @@ class _LiveLiveChat2State extends State<LiveChat2>
   }
 
   Future<void> _logOut() async {
-    // ... existing logic (no changes needed) ...
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_tokenKey);
-    await prefs.remove(_roleKey);
-    await prefs.remove(_userIdKey);
-    await prefs.remove(_pendingCacheKey);
-    await prefs.remove(_approvedCacheKey);
-    await prefs.remove(_conversationsCacheKey);
 
+    // Clear all saved data
+    await prefs.clear();
+
+    // Disconnect socket
     socketService.disconnect();
 
+    // Navigate to login screen
     if (!mounted) return;
     Navigator.pushAndRemoveUntil(
       context,
@@ -1958,21 +1879,64 @@ class _LiveLiveChat2State extends State<LiveChat2>
   }
 
   // Media picker helpers (unchanged)
-  void _sendMediaMessage(File file, {bool isVideo = false}) {
-    // ... existing logic (no changes needed) ...
-    _showSnackBar("Media upload not implemented yet.", isError: true);
+  Future<void> _sendMediaMessage(File file, {bool isVideo = false}) async {
     if (!mounted) return;
-    setState(() {
-      messages.insert(0, {
-        "sender": {"id": userId, "role": "doctor"},
-        "message":
-            isVideo
-                ? "[Video File: ${file.path.split('/').last}]"
-                : "[Image File: ${file.path.split('/').last}]",
-        "timestamp": DateTime.now().toIso8601String(),
-        "filePath": file.path,
-      });
-    });
+
+    // setState(() => _isUploading = true);
+
+    final fileType = isVideo ? "video" : "image";
+
+    try {
+      // Upload file to Cloudinary
+      final uploadedUrl = await uploadFileToCloudinary(
+        file: file,
+        fileType: fileType,
+      );
+
+      if (uploadedUrl != null) {
+        // Prepare the message payload with the uploaded URL
+        final mediaMessage = {
+          "message": uploadedUrl, // send URL as the message
+          "sender": {"id": userId},
+          "senderPic": null,
+          "conversationId": selectedConversationId,
+          "createdAt": DateTime.now().toIso8601String(),
+          "isVideo": isVideo,
+        };
+
+        if (mounted) {
+          // Add locally to chat
+          setState(() {
+            messages.insert(0, mediaMessage);
+          });
+
+          _scrollToBottom();
+          _showSnackBar("$fileType uploaded successfully!");
+        }
+
+        // Send URL through your socket service
+        try {
+          socketService.sendMessage(
+            selectedConversationId!,
+            uploadedUrl, // send URL instead of plain text
+          );
+        } catch (e) {
+          debugPrint("❌ Error sending media message: $e");
+          if (mounted) {
+            _showSnackBar("Error sending $fileType: $e", isError: true);
+            setState(() {
+              messages.remove(mediaMessage);
+            });
+          }
+        }
+      } else {
+        _showSnackBar("Failed to upload $fileType.", isError: true);
+      }
+    } catch (e, stackTrace) {
+      _showSnackBar("Error uploading $fileType: $e", isError: true);
+      debugPrint("❌ Error uploading $fileType: $e");
+      debugPrint(stackTrace.toString());
+    }
   }
 
   final ImagePicker _picker = ImagePicker();

@@ -370,7 +370,9 @@ class _VideoCallState extends State<VideoCall> {
     final aud = _localStream!.getAudioTracks();
     if (aud.isEmpty) return;
     final enabled = !aud.first.enabled;
-    for (var t in aud) t.enabled = enabled;
+    for (var t in aud) {
+      t.enabled = enabled;
+    }
     setState(() => _isMuted = !enabled);
     debugPrint(_isMuted ? "🔇 Muted" : "🎙️ Unmuted");
   }
@@ -383,7 +385,9 @@ class _VideoCallState extends State<VideoCall> {
     final vids = _localStream!.getVideoTracks();
     if (vids.isEmpty) return;
     final enabled = !vids.first.enabled;
-    for (var t in vids) t.enabled = enabled;
+    for (var t in vids) {
+      t.enabled = enabled;
+    }
     setState(() => _isVideoOff = !enabled);
     debugPrint(_isVideoOff ? "📷 OFF" : "📷 ON");
   }
